@@ -24,7 +24,8 @@ defmodule Aemet.MixProject do
     [
       {:httpoison, "~> 2.0"}, # Dependencia de HTTP clients
       {:poison, "~> 3.1"}, # Dependencia JSON decoder
-      {:oauther, "~> 1.1"} # Dependencia para OAuth
+      {:oauther, "~> 1.1"}, # Dependencia para OAuth
+      {:jason, "~> 1.0"} # Dependencia para crear ficheros json
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
     ]

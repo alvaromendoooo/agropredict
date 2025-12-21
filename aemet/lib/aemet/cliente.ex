@@ -27,6 +27,9 @@ defmodule AemetClient do
   1. Construye la URL completa usando `get_full_url/1`
   2. Construye el header con el token de autenticacion
   3. Llama a `HTTPoison.get/2` y devuelve {:ok, body} o {:error, reason}
+
+  Ejecución del método
+  {ok, url} = AemetClient.realizar_peticiones("/valores/climatologicos/inventarioestaciones/todasestaciones")
   """
   def realizar_peticiones(url) do
     token = Application.get_env(:aemet, :aemet_api_key)
@@ -35,12 +38,30 @@ defmodule AemetClient do
       {"Accept", "Application/json; Charset=utf-8"}
     ]
     with {:ok, url_completa} <- get_full_url(url),
-        {:ok, %HTTPoison.Response{status_code: 200, body: body}} <- HTTPoison.get(url_completa, header) do # Encadenamineto de acciones que pueden fallar
-      {:ok, body} # Devuelve el cuerpo de la respuesta si todo ha ido bien
+        {:ok, %HTTPoison.Response{status_code: 200, body: body_api}} <- HTTPoison.get(url_completa, header),  # Encadenamineto de acciones que pueden fallar
+        body_clean = String.trim(body_api, "\""), # Limpiamos valores residuales del body
+        {:ok, aemet_map} <- Poison.decode(body_clean), # Si las dos condiciones no fallan, almacena en aemet_map el resultado de los campos decodificados del json 'body'
+        datos_url when is_binary(datos_url) <- aemet_map["datos"], # Comprueba que sea un string válido
+        {:ok, %HTTPoison.Response{status_code: 200, body: body_datos}} <- HTTPoison.get(datos_url, header) do # Obtenemos los datos desde el endpoint interno que nos ha dado la primera petición
+      # No se hace un decode de los datos obtenidos porque son demasiados y contienen caracteres especiales, por lo que da fallos
+      filename = "estaciones.json" # Nombre del fichero donde almacenamos los datos RAW
+      ruta = Path.join(["private", "aemet", filename]) # Ruta relativa donde se va a guardar el fichero filename
+      File.write(ruta, body_datos) # Almacenamiento de datos en fichero
+      {:ok, "Se han almacenado correctamente los datos de la petición: #{url_completa}"}
     else
+      {:error, %HTTPoison.Error{} = err} -> # Manejo de errores
+        {:error, "Error HTTPoison: #{inspect(err)}"}
+
       {:error, reason} -> {:error, reason} # Propaga errores de URL o de HTTP
+
+      nil -> # Manejo de datos nulos
+        {:error, "El campo 'datos' no existe en la respuesta por AEMET"}
+
       %HTTPoison.Response{status_code: code} ->
         {:error, "HTTP status: #{code}"} # Captura otros códigos HTTP distintos de 200
+
+      other ->
+        {:error, "Error desconocido: #{inspect(other)}"}
     end
   end
 end
