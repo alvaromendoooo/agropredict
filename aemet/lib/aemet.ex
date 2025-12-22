@@ -15,4 +15,8 @@ defmodule Aemet do
   def hello do
     :world
   end
+
+  def start(_type, _args) do
+    Aemet.Supervisor.start_link()
+  end
 end

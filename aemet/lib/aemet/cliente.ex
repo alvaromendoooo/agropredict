@@ -43,11 +43,7 @@ defmodule AemetClient do
         {:ok, aemet_map} <- Poison.decode(body_clean), # Si las dos condiciones no fallan, almacena en aemet_map el resultado de los campos decodificados del json 'body'
         datos_url when is_binary(datos_url) <- aemet_map["datos"], # Comprueba que sea un string válido
         {:ok, %HTTPoison.Response{status_code: 200, body: body_datos}} <- HTTPoison.get(datos_url, header) do # Obtenemos los datos desde el endpoint interno que nos ha dado la primera petición
-      # No se hace un decode de los datos obtenidos porque son demasiados y contienen caracteres especiales, por lo que da fallos
-      filename = "estaciones.json" # Nombre del fichero donde almacenamos los datos RAW
-      ruta = Path.join(["private", "aemet", filename]) # Ruta relativa donde se va a guardar el fichero filename
-      File.write(ruta, body_datos) # Almacenamiento de datos en fichero
-      {:ok, "Se han almacenado correctamente los datos de la petición: #{url_completa}"}
+      {:ok, body_datos} # Devuelvo los datos RAW de la petición interna a AEMET
     else
       {:error, %HTTPoison.Error{} = err} -> # Manejo de errores
         {:error, "Error HTTPoison: #{inspect(err)}"}
