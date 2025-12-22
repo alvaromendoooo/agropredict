@@ -1,4 +1,5 @@
 defmodule Aemet do
+  use Application
   @moduledoc """
   Documentation for `Aemet`.
   """

@@ -14,6 +14,8 @@ defmodule Aemet.Scheduler do
 
   ## API pública
   @doc """
+  Inicialización del GenServer con su estado para que nos podamos comunicar
+  con su API pública
 
   Funcionamiento:
   Aemet.Scheduler.start_link(%{
@@ -34,6 +36,10 @@ defmodule Aemet.Scheduler do
     {:ok, state}
   end
 
+  @doc """
+  Uso para ejecutar periódicamente el work de actualizar_estaciones
+  [More info](https://hexdocs.pm/elixir/GenServer.html)
+  """
   @impl true
   def handle_info(:tick, %{interval: interval, url: url} = state) do
     Service.actualizar_estaciones(url)

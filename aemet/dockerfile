@@ -1,0 +1,36 @@
+# Etapa de build
+FROM elixir:1.15-alpine AS build
+
+# Dependencias del sistema
+RUN apk add --no-cache build-base git
+
+WORKDIR /app
+
+# Copiar archivos de la app
+COPY . .
+
+# Instalar dependencias y compilar release
+RUN mix local.hex --force
+RUN mix local.rebar --force
+RUN mix deps.get --only prod
+RUN MIX_ENV=prod mix release
+
+# Etapa final: contenedor más ligero
+FROM alpine:latest
+
+RUN apk add --no-cache libstdc++ openssl ncurses-libs
+
+WORKDIR /app
+
+# Copiar release compilado
+COPY --from=build /app/_build/prod/rel/aemet ./
+
+# Volumen para persistir JSON
+VOLUME ["/app/private/aemet"]
+
+# Variables de entorno para la app
+ENV AEMET_API_KEY=${AEMET_API_KEY}
+ENV AEMET_BASE_URL=${AEMET_BASE_URL}
+
+# Comando de arranque
+CMD ["bin/aemet", "start"]
