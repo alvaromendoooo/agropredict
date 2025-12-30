@@ -4,16 +4,18 @@ import alvaro.riego.ITACyL.model.ItemsDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import java.util.Collections;
 import java.util.List;
 
 import java.util.Arrays;
+import java.util.Map;
 
 @Service
 public abstract class BaseIInfoTypeService<T> {
@@ -34,20 +36,41 @@ public abstract class BaseIInfoTypeService<T> {
             EnumParameter group
     ) {
         try {
-            String urlCompleta = null;
-
             if (crop == null && group == null) {
-                return ApiResponse.error("Se debe de incluir el valor de al menos 1 parámetro", HttpStatusCode.valueOf(404));
-            } else if (crop == null) {
-                urlCompleta = this.baseUrl + "?group=" + group;
-            } else if (group == null) {
-                urlCompleta = this.baseUrl + "?crop=" + crop;
+                return ApiResponse.error(
+                        "Se debe de incluir el valor de al menos 1 parámetro: 'crop' o 'group'",
+                        HttpStatus.BAD_REQUEST  // Cambiado de 404 a 400
+                );
             }
+
+            // Construir URL correctamente
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
+
+            if (crop != null) {
+                builder.queryParam("crop", crop);
+            }
+
+            if (group != null) {
+                // Convertir Enum a String apropiado para la API
+                String groupValue = convertGroupToString(group);
+                builder.queryParam("group", groupValue);
+            }
+
+            String urlCompleta = builder.toUriString();
+
+            // Creación de Headers
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(itacyl_api); // para incluir el token
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+
+            // Crear HTTPEntity con headers
+            HttpEntity<String> entity = new HttpEntity<>(headers);
 
             ResponseEntity<List<T>> response = restTemplate.exchange(
                     urlCompleta,
                     HttpMethod.GET,
-                    null,
+                    entity,
                     new ParameterizedTypeReference<List<T>>() {}
             );
 
@@ -55,7 +78,7 @@ public abstract class BaseIInfoTypeService<T> {
                 List<T> data = response.getBody();
                 return ApiResponse.success(getSuccessMessage(), data);
             } else {
-                return ApiResponse.error(getErrorMessage());
+                return ApiResponse.error(getErrorMessage(), response.getStatusCode());
             }
         } catch (HttpClientErrorException e){
             return ApiResponse.error("Error de autenticación o de clave API", e.getStatusCode());
@@ -67,4 +90,10 @@ public abstract class BaseIInfoTypeService<T> {
     }
     protected abstract String getSuccessMessage();
     protected abstract String getErrorMessage();
+
+    private String convertGroupToString(EnumParameter group) {
+        if (group == null) return null;
+
+        return group.name();
+    }
 }
