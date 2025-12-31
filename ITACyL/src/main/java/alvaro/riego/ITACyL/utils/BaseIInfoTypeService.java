@@ -60,7 +60,7 @@ public abstract class BaseIInfoTypeService<T> {
 
             // Creación de Headers
             HttpHeaders headers = new HttpHeaders();
-            headers.setBearerAuth(itacyl_api); // para incluir el token
+            headers.set("apikey", itacyl_api); // para incluir el token
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
 
@@ -73,7 +73,7 @@ public abstract class BaseIInfoTypeService<T> {
                     entity,
                     new ParameterizedTypeReference<List<T>>() {}
             );
-
+            System.out.println("Response: " + response);
             if (response.getStatusCode().is2xxSuccessful()) {
                 List<T> data = response.getBody();
                 return ApiResponse.success(getSuccessMessage(), data);
