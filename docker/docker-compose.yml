@@ -1,0 +1,12 @@
+name: agro-predict
+
+services:
+  siar-service:
+    image: mendo1/agro-predict:siar-service-1.0
+    container_name: siar-service
+    environment:
+      - SIAR_API_KEY=${SIAR_API_KEY}
+    env_file: .env
+    ports:
+      - "8086:8086"
+    restart: unless-stopped
