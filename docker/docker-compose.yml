@@ -1,6 +1,27 @@
 name: agro-predict
 
 services:
+  mariadb:
+    image: mariadb:10.11
+    container_name: agro-predict-db
+    environment:
+        MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+        MYSQL_DATABASE: ${MYSQL_DATABASE}
+        MYSQL_USER: ${MYSQL_USER}
+        MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+        - "3307:3306"
+    volumes:
+        - mariadb_data:/var/lib/mysql
+    networks:
+        - shared-net  
+    healthcheck:
+        test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "mendo", "-p12345"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+        start_period: 20s  
+
   siar-service:
     image: mendo1/agro-predict:siar-service-1.0
     container_name: siar-service
@@ -10,3 +31,6 @@ services:
     ports:
       - "8086:8086"
     restart: unless-stopped
+
+volumes:
+  mariadb_data:
