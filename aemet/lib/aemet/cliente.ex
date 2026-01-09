@@ -13,10 +13,28 @@ defmodule AemetClient do
   """
   def get_full_url(url) do
     if String.length(url) > 0 do
-      base = Application.get_env(:aemet, :aemet_base_url)
+      base = Application.get_env(:aemet_api, :aemet_base_url)
       {:ok, base <> url} # Devolvemos la url completa
     else
       {:error, "La url pasada por parámetros no debe de estar vacia"}
+    end
+  end
+
+  
+  defp convertir_y_decodificar(body_datos) do
+    try do
+      # Convertir de ISO-8859-1 (Latin-1) a UTF-8
+      texto_utf8 = :unicode.characters_to_binary(body_datos, :latin1, :utf8)
+      
+      # Decodificar JSON
+      case Poison.decode(texto_utf8) do
+        {:ok, datos} -> {:ok, datos}
+        {:error, _} -> 
+          # si no puede decodificarlo a json lo devuelve en texto plano
+          {:ok, texto_utf8}
+      end
+    rescue
+      e -> {:error, "Error en conversión: #{inspect(e)}"}
     end
   end
 
@@ -32,10 +50,10 @@ defmodule AemetClient do
   {ok, url} = AemetClient.realizar_peticiones("/valores/climatologicos/inventarioestaciones/todasestaciones")
   """
   def realizar_peticiones(url) do
-    token = Application.get_env(:aemet, :aemet_api_key)
+    token = Application.get_env(:aemet_api, :aemet_api_key)
     header = [
-      {"Authorization", "Bearer #{token}"},
-      {"Accept", "Application/json; Charset=utf-8"}
+      {"api_key", token},
+      {"accept", "application/json; charset=utf-8"}
     ]
     with {:ok, url_completa} <- get_full_url(url),
         {:ok, %HTTPoison.Response{status_code: 200, body: body_api}} <- HTTPoison.get(url_completa, header),  # Encadenamineto de acciones que pueden fallar
@@ -44,6 +62,10 @@ defmodule AemetClient do
         datos_url when is_binary(datos_url) <- aemet_map["datos"], # Comprueba que sea un string válido
         {:ok, %HTTPoison.Response{status_code: 200, body: body_datos}} <- HTTPoison.get(datos_url, header) do # Obtenemos los datos desde el endpoint interno que nos ha dado la primera petición
       {:ok, body_datos} # Devuelvo los datos RAW de la petición interna a AEMET
+    case convertir_y_decodificar(body_datos) do
+      {:ok, datos_json} -> {:ok, datos_json}
+      {:error, reason} -> {:error, "Error al procesar datos: #{reason}"}
+      end
     else
       {:error, %HTTPoison.Error{} = err} -> # Manejo de errores
         {:error, "Error HTTPoison: #{inspect(err)}"}
@@ -52,6 +74,13 @@ defmodule AemetClient do
 
       nil -> # Manejo de datos nulos
         {:error, "El campo 'datos' no existe en la respuesta por AEMET"}
+
+      {:ok, %HTTPoison.Response{status_code: 429, body: body}} ->
+        {:ok, error_data} = Poison.decode(body)
+        {:error, "Rate limit excedido: #{error_data["descripcion"]}"}
+
+      {:ok, %HTTPoison.Response{status_code: code, body: body}} ->
+        {:error, "HTTP status: #{code}, body: #{body}"}
 
       %HTTPoison.Response{status_code: code} ->
         {:error, "HTTP status: #{code}"} # Captura otros códigos HTTP distintos de 200
