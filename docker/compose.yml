@@ -20,6 +20,20 @@ services:
         retries: 5
         start_period: 20s  
 
+  aemet-service:
+    image: mendo1/agro-predict:aemet-service-1.0
+    container_name: aemet-service
+    environment:
+      - AEMET_API_KEY=${AEMET_API_KEY}
+      - AEMET_BASE_URL=${AEMET_BASE_URL}
+      - PORT=4000
+    env_file: .env
+    volumes:
+      - aemet-data:/app/private/aemet
+    ports: 
+      - "4000:4000"
+    restart: unless-stopped
+
   siar-service:
     image: mendo1/agro-predict:siar-service-1.0
     container_name: siar-service
@@ -32,3 +46,5 @@ services:
 
 volumes:
   mariadb_data:
+  aemet-data:
+    driver: local
