@@ -15,19 +15,19 @@ defmodule AemetApi.Router do
     #### PREDICCIONES ACTUALES ####
 
     # Prediccion de hoy por CCAA
-    get "/api/prediccion/hoy/ccaa/:codigo" do
+    get "/api/prediccion/actual/ccaa/:codigo" do
         endpoint = "/prediccion/ccaa/hoy/#{codigo}"
         realizar_peticion(conn, endpoint)
     end
 
     # Prediccion de hoy nacional
-    get "/api/prediccion/hoy/nacional" do
+    get "/api/prediccion/actual/nacional" do
         endpoint = "/prediccion/nacional/hoy"
         realizar_peticion(conn, endpoint)
     end
 
     # Prediccion de hoy provincia
-    get "/api/prediccion/hoy/provincia/:codigo" do
+    get "/api/prediccion/actual/provincia/:codigo" do
         endpoint = "/prediccion/provincia/hoy/#{codigo}"
         realizar_peticion(conn, endpoint)
     end
@@ -35,31 +35,31 @@ defmodule AemetApi.Router do
     #### Predicciones futuras ####
 
     # Prediccion mañana por CCAA
-    get "/api/prediccion/tomorrow/:ccaa/:fecha" do
+    get "/api/prediccion/futura/tomorrow/ccaa/:ccaa/:fecha" do
         endpoint = "/prediccion/ccaa/manana/#{ccaa}/elaboracion/#{fecha}"
         realizar_peticion(conn, endpoint)
     end
 
     # Prediccion pasadomñana por CCAA
-    get "/api/prediccion/aftertomorrow/:ccaa/:fecha" do
+    get "/api/prediccion/futura/aftertomorrow/ccaa/ccaa:ccaa/:fecha" do
         endpoint = "/prediccion/ccaa/pasadomanana/#{ccaa}/elaboracion/#{fecha}"
         realizar_peticion(conn, endpoint)
     end
 
     # Prediccion mañana Nacional
-    get "/api/prediccion/nacional/tomorrow/:fecha" do
+    get "/api/prediccion/futura//tomorrow/nacional/:fecha" do
         endpoint = "/prediccion/nacional/manana/elaboracion/#{fecha}"
         realizar_peticion(conn, endpoint)
     end
 
     # Prediccion pasadomañana Nacional
-    get "/api/prediccion/nacional/aftertomorrow/:fecha" do
+    get "/api/prediccion/futura/aftertomorrow/nacional/:fecha" do
         endpoint = "/prediccion/nacional/pasadomanana/elaboracion/#{fecha}"
         realizar_peticion(conn, endpoint)
     end
 
     # Prediccion mañana Provincial
-    get "/api/prediccion/provincial/tomorrow/:provincia/:fecha" do
+    get "/api/prediccion/futura/tomorrow/provincial/:provincia/:fecha" do
         endpoint = "/prediccion/provincia/manana/#{provincia}/elaboracion/#{fecha}"
         realizar_peticion(conn, endpoint)
     end
@@ -108,4 +108,3 @@ defmodule AemetApi.Router do
         send_json(conn, 500, error_message)
     end
 end
-
