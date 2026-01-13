@@ -1,0 +1,1 @@
+# Obtiene datos del broker y se comunica con el servidor para obtener los prompts

@@ -1,0 +1,1 @@
+# Obtiene los prompts del consumidor para generar la respuesta da la IA y la envía al broker
