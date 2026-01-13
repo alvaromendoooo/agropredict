@@ -1,0 +1,23 @@
+name: agro-predict-broker
+
+services:
+  rabbitmq:
+    image: rabbitmq:latest
+    container_name : rabbitmq_broker
+    restart: always
+    ports:
+      - 5672:5672
+      - 15672:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBIT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABIIT_PASS}
+    volumes:
+      - rabbitmq-lib:/var/lib/rabbitmq
+      - rabbitmq-log:/var/log/rabbitmq
+      - ./rabbit_enabled_plugins:/etc/rabbitmq/enabled_plugins # Habilitar plugins adicionales
+
+volumes:
+  rabbitmq-lib:
+    driver: local
+  rabbitmq-log:
+    driver: local
