@@ -1,61 +1,65 @@
 from fastmcp import FastMCP
-from typing import List
-import asyncio
+
+def main():
+    # CONFIGURACIÓN DEL SERVIDOR #
+
+    ## Intancia del servidor FastMCP
+    mcp = FastMCP(
+        name="Agro-Predict's MCP Server",
+    )
+
+    print("Objeto del servidor creado.")
+
+    # HERRAMIENTAS
+
+    ## Las herramientas son funciones expuestas al cliente
 
 
-# CONFIGURACIÓN DEL SERVIDOR #
+    ## Herramientas para obtener datos del data-service
 
-## Intancia del servidor FastMCP
-mcp = FastMCP(
-    name = "Agro-Predict's MCP Server",
-    port = 9001,
-    host = "127.0.0.1",
-    log_level = "DEBUG",
-    on_duplicate_tools = "warn" # Advierte si se registran herramientas con el mismo nombre
-)
+    @mcp.tool()
+    def obtener_texto(texto : str):
+        """
+        Recibe un texto de AEMET y lo encapsula
+        """
+        return {"texto" : texto}
 
-print("Objeto del servidor creado.")
+    # PATRONES DE INTERACCION REUTILIZABLES
+    @mcp.prompt("clasificacion-climatica")
+    async def clasificacion_prompt(texto : str):
+        """
+        Genera un prompt para obtener datos necesarios para data-service, 
+        sobre los textos que AEMET genera.
+        """
+        return [
+            {"role" : "system", "content" : "Eres un clasificador de datos climáticos"},
+            {"role": "user", "content": f"""
+    Extrae los siguientes datos en JSON del siguiente texto:
 
-# HERRAMIENTAS
+    - estado del cielo
+    - aparicion de nieblas
+    - tendencia de temperaturas máximas
+    - tendencias de temperaturas mínimas
+    - tendencias de temperatura general
+    - rachas de viento
+    - precipitaciones
+    - existencias de heladas
+    - zonas de heladas
+    - cotas de nieve
 
-## Las herramientas son funciones expuestas al cliente
+    TEXTO:
+    {texto}
+    """}
+        ]
 
+    print("Prompt 'clasificacion-climatica' agregado.")
 
-## Herramientas para obtener datos del data-service
+    mcp.run(
+        transport="http",
+        host="127.0.0.1",
+        port=9001,
+        log_level="DEBUG"
+    )
 
-@mcp.tool()
-def obtener_texto(texto : str):
-    """
-    Recibe un texto de AEMET y lo encapsula
-    """
-    return {"texto" : texto}
-
-# PATRONES DE INTERACCION REUTILIZABLES
-@mcp.prompt("clasificacion-climatica")
-async def clasificacion_prompt(texto : str):
-    """
-    Genera un prompt para obtener datos necesarios para data-service, 
-    sobre los textos que AEMET genera.
-    """
-    return [
-        {"role" : "system", "content" : "Eres un clasificador de datos climáticos"},
-        {"role": "user", "content": f"""
-Extrae los siguientes datos en JSON del siguiente texto:
-
-- estado del cielo
-- aparicion de nieblas
-- tendencia de temperaturas máximas
-- tendencias de temperaturas mínimas
-- tendencias de temperatura general
-- rachas de viento
-- precipitaciones
-- existencias de heladas
-- zonas de heladas
-- cotas de nieve
-
-TEXTO:
-{texto}
-"""}
-    ]
-
-print("Prompt 'clasificacion-climatica' agregado.")
+if __name__ == '__main__':
+    main()
