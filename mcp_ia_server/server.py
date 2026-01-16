@@ -1,5 +1,6 @@
 from fastmcp import FastMCP
 from ollama import ChatResponse
+from typing import Dict, Optional, Any
 import json
 
 def main():
@@ -26,51 +27,86 @@ def main():
         return {"texto" : texto}
 
     ## Herramienta para validar la respuesta de la IA
-    @mcp.tool("procesar_respuesta_ia")
-    def procesar_respuesta_ia(respuesta_ia : ChatResponse):
+    @mcp.tool()
+    def procesar_respuesta_ia(respuesta_ia: str) -> Dict[str, Any]:
         """
         Procesa y valida la respuesta JSON de la IA
-        """
-
-        if not respuesta_ia:
-            return None
         
-        # Extraer solo el JSON de la respuesta porque viene en formato markdown
-        respuesta_limpia = respuesta_ia.message.content.strip()
-
-        # Elimino sentencias de codigo de formato markdown
+        Args:
+            respuesta_ia: Respuesta de la IA como string (puede contener JSON o markdown)
+        
+        Returns:
+            Diccionario con los datos climáticos procesados
+        """
+        if not respuesta_ia:
+            return {"error": "Respuesta vacía", "procesado": False}
+        
+        # Limpiar la respuesta
+        respuesta_limpia = respuesta_ia.strip()
+        
+        # Eliminar bloques de código markdown
         if respuesta_limpia.startswith('```json'):
-            respuesta_limpia = respuesta_limpia[7:-3].strip()
-        elif respuesta_limpia.startswith('```'):
-            respuesta_limpia = respuesta_limpia[3:-3].strip()
+            respuesta_limpia = respuesta_limpia[7:].strip()
+        if respuesta_limpia.startswith('```'):
+            respuesta_limpia = respuesta_limpia[3:].strip()
+        if respuesta_limpia.endswith('```'):
+            respuesta_limpia = respuesta_limpia[:-3].strip()
         
         try:
-
+            # Parsear JSON
             respuesta_json = json.loads(respuesta_limpia)
-
-            comprobar_campos = [
+            
+            if not isinstance(respuesta_json, dict):
+                return {
+                    "error": "La respuesta no es un objeto JSON válido",
+                    "contenido": str(respuesta_json)[:200],
+                    "procesado": False
+                }
+            
+            # Lista de campos requeridos
+            campos_requeridos = [
                 "estado_del_cielo",
-                "aparicion_de_nieblas"
-                "tendencia_de_temperaturas_maximas"
-                "tendencias_de_temperaturas_minimas"
+                "aparicion_de_nieblas",
+                "tendencia_de_temperaturas_maximas",
+                "tendencias_de_temperaturas_minimas",
                 "tendencias_de_temperatura_general",
                 "rachas_de_viento",
                 "precipitaciones",
                 "existencias_de_heladas",
-                "zonas_de_heladas"
+                "zonas_de_heladas",
                 "cotas_de_nieve"
             ]
-
-            # Verificar que el json de la respuesta contiene los campos de comprobar_campos
-            for campo in comprobar_campos:
-                if campo not in respuesta_json:
-                    respuesta_json[campo] = None
-
-            return respuesta_json
-        
+            
+            # Asegurar que todos los campos existan
+            resultado = {}
+            for campo in campos_requeridos:
+                # Intentar con diferentes nombres de campo
+                if campo in respuesta_json:
+                    resultado[campo] = respuesta_json[campo]
+                else:
+                    # Buscar variaciones del nombre
+                    campo_sin_guiones = campo.replace('_', ' ')
+                    if campo_sin_guiones in respuesta_json:
+                        resultado[campo] = respuesta_json[campo_sin_guiones]
+                    else:
+                        resultado[campo] = None
+            
+            resultado["procesado"] = True
+            resultado["valido"] = True
+            
+            return resultado
+            
         except json.JSONDecodeError as e:
-            print("Error decodificando el json de la respuesta IA: {e}")
-            return None
+            return {
+                "error": f"Error decodificando JSON: {str(e)}",
+                "respuesta_original": respuesta_ia[:500],
+                "procesado": False
+            }
+        except Exception as e:
+            return {
+                "error": f"Error inesperado: {str(e)}",
+                "procesado": False
+            }
 
     # PATRONES DE INTERACCION REUTILIZABLES
     @mcp.prompt("clasificacion-climatica")
