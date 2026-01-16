@@ -2,12 +2,15 @@
 import logging
 import asyncio
 from fastmcp import Client
-from mcp.types import PromptMessage, TextContent
+from mcp.types import PromptMessage, TextContent, CallToolResult
 
 import json
+import os
 
 from external_communication.rabbitmq_config import RabbitMQConfig
 from external_communication.rabbitmq_receive import RabbitMQConsumer
+from external_communication.rabbitmq_send import RabbitMQPublisher
+from external_communication.redis_cache import RedisCache
 
 from ollama import chat
 from ollama import ChatResponse
@@ -28,50 +31,64 @@ config = {
 
 client = Client(config)
 
+# Configuracion base de la caché Redis.
+cache = RedisCache(
+    host = os.getenv('REDIS_HOST'),
+    port = os.getenv('REDIS_PORT'),
+    password = os.getenv('REDIS_PASSWORD'),
+    default_ttl = 3600
+)
+
 async def main():
     async with client:
         # Basic server interaction
         await client.ping()
 
-        # List available operations
-        tools = await client.list_tools()
-
-        for tool in tools:
-            print(tool)
-
-        prompts = await client.list_prompts()
-        print("=== PROMPTS ===", flush = True)
-        for prompt in prompts:
-            print(prompt)
-
         logger.info("========== RABBITMQ COMMUNICATION ==========")
         
-        conexion = RabbitMQConfig.init_config()
+        # Se deben establecer conexiones diferentes para trabajar con varias queue, no se puede reutilizar una misma conexion
+        conexion_receptora = RabbitMQConfig.init_config()
+        conexion_send = RabbitMQConfig.init_config()
         print("Conexion con el broker establecida", flush = True)
         
-        message = RabbitMQConsumer.receive_content(conexion)
+        message = RabbitMQConsumer.receive_content(conexion_receptora)
         print(f"Se ha recibido el texto de la cola aemet.raw: {message}")
 
-        # Obtención del prompt para enviarlo a la IA
-        logger.info("=== OBTENCIÓN DEL PROMPT DESDE MCP ===")
-        prompt = await process_with_official_client(message)
-        #parsed_response = json.loads(prompt[0].text)
-        #print(f"Prompt recogido de MCP: {prompt}")
+        logger.info("===  VERIFICAR CACHE ===")
+        cached_result = cache.obtener(message)
+
+        if cached_result:
+            print("Respuesta de la IA obtenida de Caché")
+            result_structured = cached_result['resultado_procesado']
+
+            RabbitMQPublisher.create_publish(conexion_send, result_structured)
+
+            return
         
-        #print(f"Mensajes del prompt: {prompt.messages}", flush = True)
+        else: # Si no se encuentra la respuesta de la IA guardada en caché
+            # Obtención del prompt para enviarlo a la IA
+            logger.info("=== OBTENCIÓN DEL PROMPT DESDE MCP ===")
+            prompt = await process_with_official_client(message)
 
-        # Llamada al Agente AI y retorno de su respuesta
-        logger.info("=== OBTENCIÓN RESPUESTA AGENTE AI ===")
-        response = await obtener_respuesta_ia(prompt.messages)
-        print(f"Respuesta de deepseek-r1: {response.message.content}")
-        print("=== Validación y formateo de respuesta ===")
-        result = await client.call_tool("procesar_respuesta_ia", {"respuesta_ia" : response.message.content})
-        print(f"Resultado final: {result}")
+            # Llamada al Agente AI y retorno de su respuesta
+            logger.info("=== OBTENCIÓN RESPUESTA AGENTE AI ===")
+            response = await obtener_respuesta_ia(prompt.messages)
+            response_ia = response.message.content
+            print(f"Respuesta de deepseek-r1: {response_ia}")
+            print("=== Validación y formateo de respuesta ===")
+            result = await client.call_tool("procesar_respuesta_ia", {"respuesta_ia" : response.message.content})
 
-        # Execute operations
-        #result = await client.call_tool("add_numbers", {"num1": 2, "num2": 6})
-        #parsed_response = json.loads(result[0].text)
-        #print(parsed_response)
+            print(f"Resultado final: {result.structured_content}")
+
+            cache.guardar(
+                texto = message,
+                respuesta_ia = response_ia,
+                resultado_procesado = result.structured_content,
+                ttl = 7200 # Lo almacenamos 2 horas
+            )
+
+            RabbitMQPublisher.create_publish(conexion_send, result)
+
 
 @staticmethod
 async def process_with_official_client(text : str):
@@ -89,7 +106,7 @@ async def obtener_respuesta_ia(prompt_messages : List[PromptMessage]):
     messages = []
 
     for message in prompt_messages:
-        print(f"Message a decodificar: {message}")
+        
         # Extraigo el contenido de TextContent, contiene la información embevida en formato json que tiene que usar la IA
         if isinstance (message.content, TextContent):
             content_str = str(message.content.text)
@@ -119,8 +136,11 @@ async def obtener_respuesta_ia(prompt_messages : List[PromptMessage]):
     response : ChatResponse = chat(
         model = 'deepseek-r1', 
         messages = messages,
-        think = True,
-        logprobs = True
+        options={
+            'keep_alive': '30m',  # Mantener 30 minutos en memoria
+            'num_ctx': 4096, # Tamaño del contexto
+            'temperature': 0.1 # Grado de precision para la respuests
+        }
     )
     
     return response
