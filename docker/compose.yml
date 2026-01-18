@@ -39,6 +39,36 @@ services:
     ports:
       - "9001:9001"
     restart: unless-stopped
+  
+  ollama:
+    image: mendo1/agro-predict:model-ollama-1.0
+    container_name: ollama-service
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_NUM_PARALLEL=${PARALLEL} # Número de solicitudes paralelas
+      - OLLAMA_MAX_LOADED_MODELS=${MODELS} # Número máximo de modelos a cargar en Ollama
+      - OLLAMA_KEEP_ALIVE=${KEEP_ALIVE} # Tiempo que perdurarán los modelos en memoria
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      resources:
+        limits:
+          cpus: '6.0'
+          memory: 10G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   aemet-service:
     image: mendo1/agro-predict:aemet-service-1.0
@@ -72,3 +102,4 @@ volumes:
     driver: local
   mcp_data:
     driver: local
+  ollama_models:
