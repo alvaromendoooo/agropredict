@@ -5,7 +5,7 @@ from rabbitmq_amqp_python_client import (
     Environment
 )
 from typing import List
-import pickle
+import json
 
 
 class RabbitMQPublisher():
@@ -19,7 +19,7 @@ class RabbitMQPublisher():
         print(f"Nombre de la cola a enviar: {obj[2][1]}", flush=True)
 
         # Creamos el mensaje que vamos a enviar por la cola
-        bytes_texto = pickle.dumps(texto) # Se envía un diccionario, no se puede usar encode, solo vale para string, se debe usar pickle para serializar todo tipo de objeto
+        bytes_texto = json.dumps(texto).encode("utf-8")
         message = Message(body = bytes_texto)
 
         # Enviamos el mensaje y comprobamos su estado

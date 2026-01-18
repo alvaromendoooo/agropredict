@@ -66,6 +66,7 @@ async def main():
             result_structured = cached_result['resultado_procesado']
 
             RabbitMQPublisher.create_publish(conexion_send, result_structured)
+            print(f"Mensaje enviado por la cola: {result_structured}")
 
             return
         
@@ -78,7 +79,7 @@ async def main():
             logger.info("=== OBTENCIÓN RESPUESTA AGENTE AI ===")
             response = await obtener_respuesta_ia(prompt.messages)
             response_ia = response.message.content
-            print(f"Respuesta de deepseek-r1: {response_ia}")
+            print(f"Respuesta del modelo: {response_ia}")
             print("=== Validación y formateo de respuesta ===")
             result = await client.call_tool("procesar_respuesta_ia", {"respuesta_ia" : response.message.content})
 

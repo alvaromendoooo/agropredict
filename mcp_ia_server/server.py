@@ -119,7 +119,7 @@ def main():
             {"role" : "system", "content" : "Eres un clasificador de datos climáticos"},
             {"role": "user", "content": f"""
     Extrae SOLO los siguientes datos en formato JSON del texto proporcionado.
-    Response únicamente con el JSON, sin explicaciones ni texto adicional.
+    Responde únicamente con el JSON, sin explicaciones ni texto adicional.
              
     Campos requeridos:
     - estado del cielo
@@ -134,7 +134,11 @@ def main():
     - cotas de nieve
 
     Si alguno de los datos relacioandos a estos campos no se mencionan, usa null.
-    Para el campo rachas de viento, me gustaría que almacenases también, las zonas en las que se produce si se especifica en el texto.
+             
+    Para el campo rachas de viento, me gustaría que almacenases también, las zonas en las que se produce si se especifica en el texto, pero dentro del mismo string, no quiero que crees un object.
+
+    Todos los datos relacionados a los campos deben encontrarse en formato string, integer, float o bool. No debes utilizar objetos como valor de campo.
+    Si es necesario incluir el valor como objeto, sustitúyelo por un string que almacene toda esa información.
         
     TEXTO:
     {texto}
