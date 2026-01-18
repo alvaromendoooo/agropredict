@@ -31,6 +31,15 @@ services:
     volumes:
       - cache:/data
 
+  mcp-server:
+    image: mendo1/agro-predict:mcp-server-1.0
+    container_name: mcp-server
+    volumes:
+      - mcp_data:/var/lib/server
+    ports:
+      - "9001:9001"
+    restart: unless-stopped
+
   aemet-service:
     image: mendo1/agro-predict:aemet-service-1.0
     container_name: aemet-service
@@ -60,4 +69,6 @@ volumes:
   aemet-data:
     driver: local
   cache:
+    driver: local
+  mcp_data:
     driver: local
