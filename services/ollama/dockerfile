@@ -1,0 +1,16 @@
+# Dockerfile para ollama
+FROM ollama/ollama:latest
+
+# Expongo el puerto por defecto de Ollama
+EXPOSE 11434
+
+# Creo un volumen de modelos para evitar descargarlos constantemente
+VOLUME ["/root/.ollama"]
+
+# Script de inicio que precarga el modelo
+COPY ./scripts/preload-model.sh /preload-model.sh
+RUN chmod +x /preload-model.sh
+
+# Ejecución de ollama
+ENTRYPOINT ["/bin/sh", "-c"]
+CMD ["/preload-model.sh"]

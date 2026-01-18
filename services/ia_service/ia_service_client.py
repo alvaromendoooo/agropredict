@@ -1,7 +1,7 @@
 # Obtiene los prompts del consumidor para generar la respuesta da la IA y la envía al broker
 import logging
 import asyncio
-from fastmcp import Client
+from fastmcp import Client as client_fastmcp
 from mcp.types import PromptMessage, TextContent, CallToolResult
 
 import json
@@ -12,6 +12,7 @@ from external_communication.rabbitmq_receive import RabbitMQConsumer
 from external_communication.rabbitmq_send import RabbitMQPublisher
 from external_communication.redis_cache import RedisCache
 
+from ollama import Client
 from ollama import chat
 from ollama import ChatResponse
 
@@ -29,7 +30,10 @@ config = {
     }
 }
 
-client = Client(config)
+client = client_fastmcp(config)
+
+ollama_client = Client(host = os.getenv('OLLAMA_HOST', 'http://localhost:11434'))
+print("Cliente ollama creado", flush = True)
 
 # Configuracion base de la caché Redis.
 cache = RedisCache(
@@ -93,7 +97,10 @@ async def main():
 @staticmethod
 async def process_with_official_client(text : str):
     
-    prompt_a_usar = await client.get_prompt("clasificacion-climatica", {"texto" : text})
+    prompt_a_usar = await client.get_prompt(
+        "clasificacion-climatica", 
+        {"texto" : text}
+    )
 
     return prompt_a_usar
 
@@ -133,14 +140,20 @@ async def obtener_respuesta_ia(prompt_messages : List[PromptMessage]):
                 messages.append(message_ia)
 
     # Llamo a la función chat() de ollama para aplicar al modelo los mensajes decodificados y obtener respuesta
-    response : ChatResponse = chat(
-        model = 'deepseek-r1', 
+    response : ChatResponse = ollama_client.chat(
+        model = os.getenv('OLLAMA_MODEL'), 
         messages = messages,
-        options={
-            'keep_alive': '30m',  # Mantener 30 minutos en memoria
+        options = {
             'num_ctx': 4096, # Tamaño del contexto
-            'temperature': 0.1 # Grado de precision para la respuests
-        }
+            'temperature': 0.1, # Grado de precision para la respuests
+            'num_predict': int(os.getenv('OLLAMA_NUM_PREDICT')),
+            'top_k': 10,
+            'top_p': 0.9,
+            'repeat_penalty': 1.1,
+            'num_thread': 8,
+            'num_gpu': 1 if os.getenv('CUDA_VISIBLE_DEVICES') else 0
+        },
+        keep_alive='30m'  # Mantener 30 minutos en memoria
     )
     
     return response
