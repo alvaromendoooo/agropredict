@@ -93,6 +93,17 @@ services:
     ports:
       - "8086:8086"
     restart: unless-stopped
+  
+  itacyl-service:
+    image: mendo1/agro-predict:itacyl-service
+    container_name: itacyl-service
+    environment:
+      - ITACyL_API_KEY=${ITACyL_API_KEY}
+    env_file:
+      - .env
+    ports:
+      - "8087:8087"
+    restart: unless-stopped
 
 volumes:
   mariadb_data:
