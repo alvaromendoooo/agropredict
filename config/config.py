@@ -6,7 +6,8 @@ from circuitbreaker import CircuitBreaker
 load_dotenv()
 
 class Config():
-    pass
+    DATA_SERVICE_HISTORIC_BASE_URL = os.getenv('DATA_SERVICE_HISTORIC_BASE_URL')
+    DATA_SERVICE_FORECAST_BASE_URL = os.getenv('DATA_SERVICE_FORECAST_BASE_URL')
 
 class CircuitBreakerPersonalizado(CircuitBreaker):
     FAILURE_THRESHOLD = 7

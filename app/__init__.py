@@ -10,4 +10,7 @@ def create_app(config_class = Config):
 
     app.config.from_object(config_class)
 
+    from .prediction import prediction_bp
+    app.register_blueprint(prediction_bp)
+
     return app
