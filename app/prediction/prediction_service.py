@@ -19,11 +19,19 @@ class HeladaPredictionService():
         :return: Fecha pasada a entero
         :rtype: int
         """
-        return fecha.timetuple().tm_yday
+        # Indicamos que el inicio de año agrícola es el 1 de octubre
+        # Cultivo de secano
+        inicio_anio_agricola = date(fecha.year, 10, 1)
+
+        if fecha < inicio_anio_agricola:
+            inicio_anio_agricola = date(fecha.year - 1, 10, 1)
+        
+        return (fecha - inicio_anio_agricola).days + 1
     
     @staticmethod
     def prob_helada_posterior(dia, media, desviacion):
         z = (dia - media) / desviacion
+        print(f"z : {z}")
         # P (X > z)
         # Probabilidad de que la helada ocurra después del día dado
         return 0.5*(1 - erf(z / sqrt(2)))
@@ -47,7 +55,7 @@ class HeladaPredictionService():
             # Obtenemos la temperatura mínima que nos devuelve el cliente
             temp_min = d.get('tempMin')
             # Obtenemos la fecha en la que se produjo esa temp_min
-            fec_temp_min = datetime.strptime(d.get('horMinTempMin').get('timestamp'), "%Y-%m-%dT%H:%M:%S")
+            fec_temp_min = datetime.fromisoformat(d.get('horMinTempMin').get('timestamp')).date()
             # 1. Primer caso de uso, comprobar si han ocurrido precipitaciones o si el suelo se encontraba húmedo
             precipitaciones = d.get('precipitacion')
             humedad_min = d.get('humedadMin')
@@ -77,6 +85,7 @@ class HeladaPredictionService():
             
             # Pasamos la fecha a dia juliano para trabajar mejor con ella
             fecha_min = HeladaPredictionService.dia_juliano(fec_temp_min)
+            print(f"Fecha juliana : {fecha_min}")
             prob = HeladaPredictionService.prob_helada_posterior(
                 dia = fecha_min, 
                 media = Config.MEDIA_ULTIMA_HELADA,

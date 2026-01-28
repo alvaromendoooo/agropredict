@@ -23,7 +23,9 @@ class Config():
         helada y almacenarlos en una lista, con estos datos puedo obtener la 
         media y desviación típica real
     """
-    MEDIA_ULTIMA_HELADA = 214   # configurable
+
+
+    MEDIA_ULTIMA_HELADA = 120   # configurable  # Año agrícola 1 octubre empieza
     DESVIACION_HELADA = 20     # configurable
 
 class CircuitBreakerPersonalizado(CircuitBreaker):
