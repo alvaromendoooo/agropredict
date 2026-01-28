@@ -1,7 +1,9 @@
 from clients.data_service_client import DataServiceClient 
+from config.config import Config
 from .prediction_dto import *
 from typing import Optional
 from datetime import date
+from math import erf, sqrt
 
 class HeladaPredictionService():
     
@@ -17,6 +19,13 @@ class HeladaPredictionService():
         :rtype: int
         """
         return fecha.timetuple().tm_yday
+    
+    @staticmethod
+    def prob_helada_posterior(dia, media, desviacion):
+        z = (dia - media) / desviacion
+        # P (X > z)
+        # Probabilidad de que la helada ocurra después del día dado
+        return 0.5*(1 - erf(z / sqrt(2)))
 
     @staticmethod
     def _build_predictions(
@@ -31,13 +40,78 @@ class HeladaPredictionService():
         """
 
         predicciones = []
+        alertas = []
 
         for d in data:
             # Obtenemos la temperatura mínima que nos devuelve el cliente
             temp_min = d.get('tempMin')
             # Obtenemos la fecha en la que se produjo esa temp_min
-            fec_temp_min = d.get('horMinTempMin')
+            fec_temp_min = date.isoformat(d.get('horMinTempMin').get('timestamp'))
+            
+            # 1. Primer caso de uso, comprobar si han ocurrido precipitaciones o si el suelo se encontraba húmedo
+            precipitaciones = d.get('precipitacion')
+            humedad_min = d.get('humedadMin')
 
+            if precipitaciones >= 50 or humedad_min >= 50: # Si llueve, evita riesgo de heladas
+                nivel = NivelHelada.SIN_RIESGO
+            else:
+                # 2. Segundo caso de uso, riesgo inmediato por temperaturas minimas
+                if temp_min <= 0:
+                    nivel = NivelHelada.FUERTE
+                    alerta = AlertaDTO(
+                        mensaje = f"Se ha percibido temperaturas mínimas bajo cero el día {fec_temp_min}",
+                        recomendacion = "Riesgo alto de congelación en brotes de árboles frutales, asegurarlos con cubiertas o mallas protectoras",
+                        nivel = TipoAlerta.CRITICA
+                    ) 
+                    alertas.append(alerta)
+                elif temp_min <= 2:
+                    nivel = NivelHelada.MODERADA
+                    alerta = AlertaDTO(
+                        mensaje = f"Se ha percibido temperaturas mínimas moderadas sin riesgo para la explotación el día {fec_temp_min}",
+                        recomendacion = "Prevenir heladas asegurando brotes en árboles frutales con agua y recubrimiento térmico",
+                        nivel = TipoAlerta.PREVENTIVA
+                    )
+                else:
+                    nivel = NivelHelada.SIN_RIESGO
+                    alertas = []
+            
+            # Pasamos la fecha a dia juliano para trabajar mejor con ella
+            fecha_min = HeladaPredictionService.dia_juliano(fec_temp_min)
+            prob = HeladaPredictionService.prob_helada_posterior(
+                dia = fecha_min, 
+                media = Config.MEDIA_ULTIMA_HELADA,
+                desviacion = Config.DESVIACION_HELADA
+            ) * 100 # Para obtener el porcentaje
+
+            comentarios = (
+                f"Predicción realizada el {datetime.now()}. "
+                f"Temperatura mínima registrada: {temp_min} °C. "
+                f"Riesgo estadístico de heladas tardías: {prob:.2f}%."
+            )
+
+            contexto_de_calculo = ContextoCalculoDTO(
+                tipos_datos = [TipoDato.HISTORICOS],
+                prediccion_o_estimacion = TipoResultado.ESTIMACION,
+                fuente = ["SiAR"],
+                fecha_generacion = datetime.now()
+            )
+            
+            # No incluyo predicción alta porque no tengo muchos datos
+            predicciones.append(
+                RiesgoHeladaDTO(
+                    nivel = nivel,
+                    temperatura_minima_estimada = temp_min,
+                    comentarios = comentarios,
+                    alertas = alertas,
+                    contexto = contexto_de_calculo,
+                    precision = TipoPrecision.MEDIA if prob >= 30 else TipoPrecision.BAJA
+                )
+            )
+
+            # Limpio las alertas para no afectar a la siguiente iteracion
+            alertas = []
+
+        return predicciones
 
     @staticmethod
     def obtener_predicciones_helada(
@@ -61,4 +135,3 @@ class HeladaPredictionService():
             )
 
         return predicciones
-

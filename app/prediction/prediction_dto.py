@@ -35,7 +35,7 @@ class AlertaDTO:
     nivel : TipoAlerta
 
 @dataclass
-class ContextoCalculo:
+class ContextoCalculoDTO:
     tipos_datos : List[TipoDato]
     prediccion_o_estimacion : TipoResultado
     fuente : List[str]
@@ -47,5 +47,5 @@ class RiesgoHeladaDTO:
     temperatura_minima_estimada : float
     comentarios : str
     alertas : List[AlertaDTO]
-    contexto : ContextoCalculo
+    contexto : ContextoCalculoDTO
     precision : TipoPrecision
