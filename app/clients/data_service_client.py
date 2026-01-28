@@ -15,7 +15,7 @@ class DataServiceClient(BaseClient):
         self.base_historical_url = app.config.get('DATA_SERVICE_HISTORIC_BASE_URL')
         self.base_forecast_url = app.config.get('DATA_SERVICE_FORECAST_BASE_URL')
 
-    @circuit(CircuitBreakerPersonalizado)
+    @circuit(cls = CircuitBreakerPersonalizado)
     def get_historic_data(
         self,
         province_code : Optional[str],
@@ -24,6 +24,7 @@ class DataServiceClient(BaseClient):
         start_date : date,
         end_date : date
     ): 
+        print(f"Provincia: {province_code}")
         try:
             # Precondicion
             if province_code and estacion_code:

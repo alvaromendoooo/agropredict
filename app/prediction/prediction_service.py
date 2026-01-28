@@ -1,12 +1,13 @@
-from clients.data_service_client import DataServiceClient 
+from ..clients.data_service_client import DataServiceClient 
 from config.config import Config
 from .prediction_dto import *
 from typing import Optional
 from datetime import date
 from math import erf, sqrt
+from flask import current_app
 
 class HeladaPredictionService():
-    
+
     @staticmethod
     def dia_juliano(fecha : date) -> int:
         """
@@ -46,8 +47,7 @@ class HeladaPredictionService():
             # Obtenemos la temperatura mínima que nos devuelve el cliente
             temp_min = d.get('tempMin')
             # Obtenemos la fecha en la que se produjo esa temp_min
-            fec_temp_min = date.isoformat(d.get('horMinTempMin').get('timestamp'))
-            
+            fec_temp_min = datetime.strptime(d.get('horMinTempMin').get('timestamp'), "%Y-%m-%dT%H:%M:%S")
             # 1. Primer caso de uso, comprobar si han ocurrido precipitaciones o si el suelo se encontraba húmedo
             precipitaciones = d.get('precipitacion')
             humedad_min = d.get('humedadMin')
@@ -59,16 +59,16 @@ class HeladaPredictionService():
                 if temp_min <= 0:
                     nivel = NivelHelada.FUERTE
                     alerta = AlertaDTO(
-                        mensaje = f"Se ha percibido temperaturas mínimas bajo cero el día {fec_temp_min}",
-                        recomendacion = "Riesgo alto de congelación en brotes de árboles frutales, asegurarlos con cubiertas o mallas protectoras",
+                        mensaje = f"Se ha percibido temperaturas minimas bajo cero el dia {fec_temp_min}",
+                        recomendacion = "Riesgo alto de congelación en brotes de arboles frutales, asegurarlos con cubiertas o mallas protectoras",
                         nivel = TipoAlerta.CRITICA
                     ) 
                     alertas.append(alerta)
                 elif temp_min <= 2:
                     nivel = NivelHelada.MODERADA
                     alerta = AlertaDTO(
-                        mensaje = f"Se ha percibido temperaturas mínimas moderadas sin riesgo para la explotación el día {fec_temp_min}",
-                        recomendacion = "Prevenir heladas asegurando brotes en árboles frutales con agua y recubrimiento térmico",
+                        mensaje = f"Se ha percibido temperaturas minimas moderadas sin riesgo para la explotación el dia {fec_temp_min}",
+                        recomendacion = "Prevenir heladas asegurando brotes en arboles frutales con agua y recubrimiento termico",
                         nivel = TipoAlerta.PREVENTIVA
                     )
                 else:
@@ -84,9 +84,9 @@ class HeladaPredictionService():
             ) * 100 # Para obtener el porcentaje
 
             comentarios = (
-                f"Predicción realizada el {datetime.now()}. "
-                f"Temperatura mínima registrada: {temp_min} °C. "
-                f"Riesgo estadístico de heladas tardías: {prob:.2f}%."
+                f"Prediccion realizada el {datetime.now()}. "
+                f"Temperatura minima registrada: {temp_min} C. "
+                f"Riesgo estadistico de heladas tardias: {prob:.2f}%."
             )
 
             contexto_de_calculo = ContextoCalculoDTO(
@@ -121,7 +121,8 @@ class HeladaPredictionService():
         start_date : date,
         end_date : date
     ):
-        datos = DataServiceClient.get_historic_data(
+        client = DataServiceClient(app = current_app)
+        datos = client.get_historic_data(
             province_code = province_code,
             estacion_code = estacion_code,
             type = type,
