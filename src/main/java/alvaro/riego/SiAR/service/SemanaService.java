@@ -21,17 +21,19 @@ public class SemanaService extends BaseInfoTypeService<SemanaDTO> {
             String provinciaId,
             String fechaInicial,
             String fechaFinal,
-            String fechaUltModificacion
+            String fechaUltModificacion,
+            String datosCalculados
     ){
-        return obtenerData("Datos/Semanales/Provincia?", provinciaId, fechaInicial, fechaFinal, fechaUltModificacion);
+        return obtenerData("Datos/Semanales/PROVINCIA?", provinciaId, fechaInicial, fechaFinal, datosCalculados);
     }
 
     public ApiResponse<List<SemanaDTO>> obtenerDatosSemanalesEstacion(
         String estacionId,
         String fechaInicial,
-        String fechaFinal
+        String fechaFinal,
+        String datosCalculados
     ){
-        return obtenerData("Datos/Semanales/Estacion?", estacionId, fechaInicial, fechaFinal);
+        return obtenerData("Datos/Semanales/ESTACION?", estacionId, fechaInicial, fechaFinal, datosCalculados);
     }
 
     @Override

@@ -36,7 +36,7 @@ public class UserInfoService extends BaseInfoTypeService<SiARUserInfoDTO> {
     * Obtener información de acceso sobre el usuario para la API
     * */
     public ApiResponse<List<SiARUserInfoDTO>> obtenerInformacionAcceso(){
-        return obtenerSiARInfo(getTypeReference(), "Info/Accesos", Optional.empty());
+        return obtenerSiARInfo(getTypeReference(), "Info/ACCESOS", Optional.empty());
     }
 
     /*

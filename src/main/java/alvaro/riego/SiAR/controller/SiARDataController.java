@@ -32,15 +32,16 @@ public class SiARDataController {
 
     @GetMapping("Dia/provincias")
     public ResponseEntity<ApiResponse<List<DiaDTO>>> getDatosDiarioProvincias(
-            @RequestParam String id,
-            @RequestParam String fechaInicial,
-            @RequestParam String fechaFinal,
-            @RequestParam(required = false) String fechaUltModificacion
+            @RequestParam String Id,
+            @RequestParam String FechaInicial,
+            @RequestParam String FechaFinal,
+            @RequestParam(required = false) String FechaUltModificacion,
+            @RequestParam(required = false) String DatosCalculados
     ){
 
 
         ApiResponse<List<DiaDTO>> response = siarDiaService.obtenerDatosDiaProvincia(
-                id, fechaInicial, fechaFinal, fechaUltModificacion);
+                Id, FechaInicial, FechaFinal, FechaUltModificacion, DatosCalculados);
 
         HttpStatus status = response.isSuccess() ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
 
@@ -50,11 +51,12 @@ public class SiARDataController {
 
     @GetMapping("Dia/estaciones")
     public ResponseEntity<ApiResponse<List<DiaDTO>>> getDatosDiariosEstaciones(
-            @RequestParam String id,
-            @RequestParam String fechaInicial,
-            @RequestParam String fechaFinal
+            @RequestParam String Id,
+            @RequestParam String FechaInicial,
+            @RequestParam String FechaFinal,
+            @RequestParam (required = false) String DatosCalculados
     ) {
-        ApiResponse<List<DiaDTO>> response = siarDiaService.obtenerDatosDiaEstacion(id, fechaInicial, fechaFinal);
+        ApiResponse<List<DiaDTO>> response = siarDiaService.obtenerDatosDiaEstacion(Id, FechaInicial, FechaFinal, DatosCalculados);
 
         HttpStatus status = response.isSuccess() ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
 
@@ -63,12 +65,13 @@ public class SiARDataController {
 
     @GetMapping("Hora/provincias")
     public ResponseEntity<ApiResponse<List<HoraDTO>>> getDatosHoraProvincias(
-            @RequestParam String id,
-            @RequestParam String fechaInicial,
-            @RequestParam String fechaFinal,
-            @RequestParam(required = false) String fechaUltModificacion
+            @RequestParam String Id,
+            @RequestParam String FechaInicial,
+            @RequestParam String FechaFinal,
+            @RequestParam(required = false) String FechaUltModificacion,
+            @RequestParam(required = false) String DatosCalculados
     ) {
-        ApiResponse<List<HoraDTO>> response = siarHoraService.obtenerDatosHorariosProvincias(id, fechaInicial, fechaFinal, fechaUltModificacion);
+        ApiResponse<List<HoraDTO>> response = siarHoraService.obtenerDatosHorariosProvincias(Id, FechaInicial, FechaFinal, FechaUltModificacion, DatosCalculados);
 
         HttpStatus status = response.isSuccess() ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
 
@@ -77,11 +80,12 @@ public class SiARDataController {
 
     @GetMapping("Hora/estaciones")
     public ResponseEntity<ApiResponse<List<HoraDTO>>> getDatosHoraEstaciones(
-            @RequestParam String id,
-            @RequestParam String fechaInicial,
-            @RequestParam String fechaFinal
+            @RequestParam String Id,
+            @RequestParam String FechaInicial,
+            @RequestParam String FechaFinal,
+            @RequestParam(required = false) String DatosCalculados
     ) {
-        ApiResponse<List<HoraDTO>> response = siarHoraService.obtenerDatosHoratiosEstacion(id, fechaInicial, fechaFinal);
+        ApiResponse<List<HoraDTO>> response = siarHoraService.obtenerDatosHoratiosEstacion(Id, FechaInicial, FechaFinal, DatosCalculados);
 
         HttpStatus status = response.isSuccess() ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
 
@@ -90,12 +94,13 @@ public class SiARDataController {
 
     @GetMapping("Semana/provincias")
     public ResponseEntity<ApiResponse<List<SemanaDTO>>> getDatosSemanaProvincias(
-            @RequestParam String id,
-            @RequestParam String fechaInicial,
-            @RequestParam String fechaFinal,
-            @RequestParam(required = false) String fechaUltModificacion
+            @RequestParam String Id,
+            @RequestParam String FechaInicial,
+            @RequestParam String FechaFinal,
+            @RequestParam(required = false) String FechaUltModificacion,
+            @RequestParam(required = false) String DatosCalculados
     ) {
-        ApiResponse<List<SemanaDTO>> response = siarSemanaService.obtenerDatosSemanalesProvincias(id, fechaInicial, fechaFinal, fechaUltModificacion);
+        ApiResponse<List<SemanaDTO>> response = siarSemanaService.obtenerDatosSemanalesProvincias(Id, FechaInicial, FechaFinal, FechaUltModificacion, DatosCalculados);
 
         HttpStatus status = response.isSuccess() ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
 
@@ -104,11 +109,12 @@ public class SiARDataController {
 
     @GetMapping("Semana/estaciones")
     public ResponseEntity<ApiResponse<List<SemanaDTO>>> getDatosSemanaEstaciones(
-            @RequestParam String id,
-            @RequestParam String fechaInicial,
-            @RequestParam String fechaFinal
+            @RequestParam String Id,
+            @RequestParam String FechaInicial,
+            @RequestParam String FechaFinal,
+            @RequestParam String DatosCalculados
     ) {
-        ApiResponse<List<SemanaDTO>> response = siarSemanaService.obtenerDatosSemanalesEstacion(id, fechaInicial, fechaFinal);
+        ApiResponse<List<SemanaDTO>> response = siarSemanaService.obtenerDatosSemanalesEstacion(Id, FechaInicial, FechaFinal, DatosCalculados);
 
         HttpStatus status = response.isSuccess() ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
 

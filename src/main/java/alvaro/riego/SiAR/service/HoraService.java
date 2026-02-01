@@ -20,17 +20,19 @@ public class HoraService extends BaseInfoTypeService<HoraDTO> {
             String provinciId,
             String fechaInicial,
             String fechaFinal,
-            String fechaUltModificacion
+            String fechaUltModificacion,
+            String datosCalculados
     ){
-        return obtenerData("Datos/Horarios/Provincia?", provinciId, fechaInicial, fechaFinal, fechaUltModificacion);
+        return obtenerData("Datos/Horarios/PROVINCIA?", provinciId, fechaInicial, fechaFinal, datosCalculados);
     }
 
     public ApiResponse<List<HoraDTO>> obtenerDatosHoratiosEstacion(
             String estacionId,
             String fechaInicial,
-            String fechaFinal
+            String fechaFinal,
+            String datosCalculados
     ){
-        return obtenerData("Datos/Horarios/Estacion?", estacionId, fechaInicial, fechaFinal, null);
+        return obtenerData("Datos/Horarios/ESTACION?", estacionId, fechaInicial, fechaFinal, datosCalculados);
     }
 
     @Override

@@ -20,7 +20,7 @@ public class ProvinciaService extends BaseInfoTypeService<ProvinciaDTO> {
     }
 
     public ApiResponse<List<ProvinciaDTO>> obtenerInformacionProvincias(){
-        return obtenerSiARInfo(getTypeReference(),"Info/Provincias", Optional.empty());
+        return obtenerSiARInfo(getTypeReference(),"Info/PROVINCIAS", Optional.empty());
     }
 
     @Override

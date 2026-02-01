@@ -27,7 +27,7 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true) // Ignoramos campos que no nos interesan
 public class ResponseWrapper<T> {
-    @JsonProperty("Datos") // Mapeo del json al DTO
+    @JsonProperty("datos") // Mapeo del json al DTO
     // Lista de objectos T
     private List<T> datos;
 

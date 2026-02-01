@@ -60,7 +60,7 @@ public abstract class BaseInfoTypeService<T> {
             String baseUrlSinParametros = this.baseUrl + urlFilter;
 
             if(parametros.isEmpty()){ // Caso en el que buscamos info de usuario privada
-                urlCompleta = this.baseUrl + urlFilter + "?ClaveAPI=" + siar_api;
+                urlCompleta = this.baseUrl + urlFilter + "?token=" + siar_api;
             } else { // Caso en el que buscamos info publica
                 urlCompleta = this.crearFiltrosAnidados(baseUrlSinParametros, parametros);
             }
@@ -90,6 +90,7 @@ public abstract class BaseInfoTypeService<T> {
 
             if (response.getStatusCode().is2xxSuccessful()){
                 List<T> data = response.getBody().getDatos();
+                System.out.println("Data : " + data);
                 return ApiResponse.success(getSuccessMessage(), data);
             } else {
                 return ApiResponse.error(getErrorMessage());
@@ -106,7 +107,7 @@ public abstract class BaseInfoTypeService<T> {
     private String crearFiltrosAnidados(String baseUrl, Optional<Map<String, String>>parametros){
 
         StringBuilder urlBuilder = new StringBuilder(baseUrl);
-        urlBuilder.append("ClaveAPI=").append(siar_api).append("&");
+        urlBuilder.append("token=").append(siar_api).append("&");
 
         boolean primerParam = true;
         if (parametros != null && !parametros.isEmpty()) {
@@ -135,7 +136,8 @@ public abstract class BaseInfoTypeService<T> {
             String id,
             String fechaInicial,
             String fechaFinal,
-            String fechaUltimaModificacion
+            String fechaUltimaModificacion,
+            String datosCalculados
     ) {
         logParametros(id, fechaInicial, fechaFinal, fechaUltimaModificacion);
 
@@ -143,6 +145,7 @@ public abstract class BaseInfoTypeService<T> {
         parametros.get().put("Id", id);
         parametros.get().put("FechaInicial", fechaInicial);
         parametros.get().put("FechaFinal", fechaFinal);
+        parametros.get().put("DatosCalculados", datosCalculados);
 
         if(fechaUltimaModificacion != null && !fechaUltimaModificacion.trim().isEmpty()){
             parametros.get().put("FechaUltModificacion", fechaUltimaModificacion);
@@ -155,8 +158,8 @@ public abstract class BaseInfoTypeService<T> {
             String url,
             String id,
             String fechaInicial,
-            String fechaFinal
-
+            String fechaFinal,
+            String datosCalculados
     ) {
         logParametros(id, fechaInicial, fechaFinal, null);
 
@@ -164,6 +167,7 @@ public abstract class BaseInfoTypeService<T> {
         parametros.get().put("Id", id);
         parametros.get().put("FechaInicial", fechaInicial);
         parametros.get().put("FechaFinal", fechaFinal);
+        parametros.get().put("DatosCalculados", datosCalculados);
 
         return obtenerSiARInfo(getTypeReference(), url, parametros);
     }

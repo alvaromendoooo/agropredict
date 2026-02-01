@@ -7,8 +7,8 @@ import java.util.Date;
 
 @Data
 public class SemanaDTO {
-    @JsonProperty("Fecha")
-    private Short fecha;
+    @JsonProperty("Año")
+    private Short año;
     @JsonProperty("Semana")
     private Short semana;
     @JsonProperty("TempMedia")
@@ -35,12 +35,12 @@ public class SemanaDTO {
     private Float velVientoMax;
     @JsonProperty("DiaHorMinVelMax")
     private Date diaHorMinVelMax;
-    @JsonProperty("DirVientoVelMac")
+    @JsonProperty("DirVientoVelMax")
     private Float dirVientoVelMax;
     @JsonProperty("Radiacion")
-    private Float radiaccion;
+    private Float radiacion;
     @JsonProperty("Precipitacion")
-    private Date precipitacion;
+    private Float precipitacion;
     @JsonProperty("EtPMon")
     private Float EtPMon;
     @JsonProperty("PePMon")

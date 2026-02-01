@@ -57,12 +57,15 @@ public class SiArInfoController {
         System.out.println("Success: " + response.isSuccess());
         System.out.println("Message: " + response.getMessage());
         System.out.println("Data: " + response.getData());
-        if (response.getData() != null && !response.getData().isEmpty()) {
-            System.out.println("Primera estación en data:");
-            SiAREstacionesInfoDTO primera = response.getData().getFirst();
-            System.out.println("  - Estacion: " + primera.getEstacion());
-            System.out.println("  - Codigo: " + primera.getCodigo());
-            System.out.println("  - Termino: " + primera.getTermino());
+        List<SiAREstacionesInfoDTO> datos = response.getData();
+
+        if (datos != null && !datos.isEmpty()) {
+            SiAREstacionesInfoDTO primera = datos.getFirst();
+
+            System.out.println("Primera estación:");
+            System.out.println("  - Estación: " + primera.getEstacion());
+            System.out.println("  - Código: " + primera.getCodigo());
+            System.out.println("  - Término: " + primera.getTermino());
         }
         System.out.println("==========================");
 

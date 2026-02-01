@@ -27,20 +27,22 @@ public class DiaService extends BaseInfoTypeService<DiaDTO> {
             String provinciaId,
             String fechaInicial,
             String fechaFinal,
-            String fechaUltModificacion
+            String fechaUltModificacion,
+            String datosCalculados
     ){
 
-        return obtenerData("Datos/Diarios/Provincia?", provinciaId, fechaInicial, fechaFinal, fechaUltModificacion);
+        return obtenerData("Datos/Diarios/PROVINCIA?", provinciaId, fechaInicial, fechaFinal, datosCalculados);
     }
 
 
     public ApiResponse<List<DiaDTO>> obtenerDatosDiaEstacion (
             String estacionId,
             String fechaInicial,
-            String fechaFinal
+            String fechaFinal,
+            String datosCalculados
     ) {
 
-        return obtenerData("Datos/Diarios/Estacion?", estacionId, fechaInicial, fechaFinal);
+        return obtenerData("Datos/Diarios/ESTACION?", estacionId, fechaInicial, fechaFinal, datosCalculados);
     }
 
     @Override

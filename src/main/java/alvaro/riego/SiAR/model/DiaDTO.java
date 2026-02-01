@@ -34,7 +34,7 @@ public class DiaDTO {
     @JsonProperty("HorMinHumMax")
     // Registro de humedad maxima en minutos hora
     private Short horMinHumMax;
-    @JsonProperty("HumedadMin")
+    @JsonProperty("humedadMin")
     // Registro de humedad minima
     private Float humedadMin;
     @JsonProperty("HorMinHumMin")

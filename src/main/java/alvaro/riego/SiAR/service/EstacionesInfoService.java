@@ -18,7 +18,7 @@ public class EstacionesInfoService extends BaseInfoTypeService<SiAREstacionesInf
     }
 
     public ApiResponse<List<SiAREstacionesInfoDTO>> obtenerInformacionEstaciones(){
-        return obtenerSiARInfo(getTypeReference(), "Info/Estaciones", Optional.empty());
+        return obtenerSiARInfo(getTypeReference(), "Info/ESTACIONES", Optional.empty());
     }
 
     @Override
