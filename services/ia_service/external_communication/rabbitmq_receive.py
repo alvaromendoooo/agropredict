@@ -26,17 +26,22 @@ class MessageHandler(AMQPMessagingHandler):
 
     def on_message(self, event : Event):
         # Almacenamos el contenido del cuerpo del mensaje que está en la cola
-        body_undecoded = event.message.body
-               
-        # Guardo el mensaje para reotornarlo luego
-        self.last_message = self.bytes_2_text(body_undecoded)
+        try:
+            body_undecoded = event.message.body
+                
+            # Guardo el mensaje para reotornarlo luego
+            self.last_message = self.bytes_2_text(body_undecoded)
 
-        # Acepto el mensaje recibido para eliminarlo de la cola
-        self.delivery_context.accept(event)
-
-        # Para de esperar más mensajes una vez ya se ha leido un evento
-        if self.consumer:  
-            self.consumer.stop()
+            # ACK de que se ha recibido bien el texto para eliminarlo de la pipe
+            self.delivery_context.accept(event)
+           
+        except Exception as e:
+            self.delivery_context.reject(event, requeue=True)
+        
+        finally:
+             # Para de esperar más mensajes una vez ya se ha leido un evento
+            if self.consumer:  
+                self.consumer.stop()
 
 class RabbitMQConsumer():
     def receive_content(

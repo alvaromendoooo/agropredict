@@ -2,7 +2,7 @@
 import logging
 import asyncio
 from fastmcp import Client as client_fastmcp
-from mcp.types import PromptMessage, TextContent, CallToolResult
+from mcp.types import PromptMessage, TextContent
 
 import json
 import os
@@ -58,42 +58,45 @@ async def main():
         message = RabbitMQConsumer.receive_content(conexion_receptora)
         print(f"Se ha recibido el texto de la cola aemet.raw: {message}")
 
-        logger.info("===  VERIFICAR CACHE ===")
-        cached_result = cache.obtener(message)
+        try:
+            logger.info("===  VERIFICAR CACHE ===")
+            cached_result = cache.obtener(message)
 
-        if cached_result:
-            print("Respuesta de la IA obtenida de Caché")
-            result_structured = cached_result['resultado_procesado']
+            if cached_result:
+                print("Respuesta de la IA obtenida de Caché")
+                result_structured = cached_result['resultado_procesado']
 
-            RabbitMQPublisher.create_publish(conexion_send, result_structured)
-            print(f"Mensaje enviado por la cola: {result_structured}")
+                RabbitMQPublisher.create_publish(conexion_send, result_structured)
+                print(f"Mensaje enviado por la cola: {result_structured}")
 
-            return
-        
-        else: # Si no se encuentra la respuesta de la IA guardada en caché
-            # Obtención del prompt para enviarlo a la IA
-            logger.info("=== OBTENCIÓN DEL PROMPT DESDE MCP ===")
-            prompt = await process_with_official_client(message)
+                return
+            
+            else: # Si no se encuentra la respuesta de la IA guardada en caché
+                # Obtención del prompt para enviarlo a la IA
+                logger.info("=== OBTENCIÓN DEL PROMPT DESDE MCP ===")
+                prompt = await process_with_official_client(message)
 
-            # Llamada al Agente AI y retorno de su respuesta
-            logger.info("=== OBTENCIÓN RESPUESTA AGENTE AI ===")
-            response = await obtener_respuesta_ia(prompt.messages)
-            response_ia = response.message.content
-            print(f"Respuesta del modelo: {response_ia}")
-            print("=== Validación y formateo de respuesta ===")
-            result = await client.call_tool("procesar_respuesta_ia", {"respuesta_ia" : response.message.content})
+                # Llamada al Agente AI y retorno de su respuesta
+                logger.info("=== OBTENCIÓN RESPUESTA AGENTE AI ===")
+                response = await obtener_respuesta_ia(prompt.messages)
+                response_ia = response.message.content
+                print(f"Respuesta del modelo: {response_ia}")
+                print("=== Validación y formateo de respuesta ===")
+                result = await client.call_tool("procesar_respuesta_ia", {"respuesta_ia" : response.message.content})
 
-            print(f"Resultado final: {result.structured_content}")
+                print(f"Resultado final: {result.structured_content}")
 
-            cache.guardar(
-                texto = message,
-                respuesta_ia = response_ia,
-                resultado_procesado = result.structured_content,
-                ttl = 7200 # Lo almacenamos 2 horas
-            )
+                cache.guardar(
+                    texto = message,
+                    respuesta_ia = response_ia,
+                    resultado_procesado = result.structured_content,
+                    ttl = 7200 # Lo almacenamos 2 horas
+                )
 
-            RabbitMQPublisher.create_publish(conexion_send, result)
+                RabbitMQPublisher.create_publish(conexion_send, result.structured_content)
 
+        except Exception as e:
+            print(f"Ha ocurrido un error en el procesamiento complejo de la respuesta : {e}")
 
 @staticmethod
 async def process_with_official_client(text : str):
