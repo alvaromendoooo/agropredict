@@ -51,11 +51,13 @@ async def main():
         logger.info("========== RABBITMQ COMMUNICATION ==========")
         
         # Se deben establecer conexiones diferentes para trabajar con varias queue, no se puede reutilizar una misma conexion
-        conexion_receptora = RabbitMQConfig.init_config()
-        conexion_send = RabbitMQConfig.init_config()
+        conn, channel, queues = RabbitMQConfig.init_config()
         print("Conexion con el broker establecida", flush = True)
         
-        message = RabbitMQConsumer.receive_content(conexion_receptora)
+        message = RabbitMQConsumer.receive_content(
+            channel,
+            queues["raw"]
+        )
         print(f"Se ha recibido el texto de la cola aemet.raw: {message}")
 
         try:
@@ -66,7 +68,11 @@ async def main():
                 print("Respuesta de la IA obtenida de Caché")
                 result_structured = cached_result['resultado_procesado']
 
-                RabbitMQPublisher.create_publish(conexion_send, result_structured)
+                RabbitMQPublisher.create_publish(
+                    channel,
+                    queues["processed"], 
+                    result_structured
+                )
                 print(f"Mensaje enviado por la cola: {result_structured}")
 
                 return
@@ -93,7 +99,12 @@ async def main():
                     ttl = 7200 # Lo almacenamos 2 horas
                 )
 
-                RabbitMQPublisher.create_publish(conexion_send, result.structured_content)
+                RabbitMQPublisher.create_publish(
+                    channel,
+                    queues["processed"], 
+                    result.structured_content)
+                
+            conn.close()
 
         except Exception as e:
             print(f"Ha ocurrido un error en el procesamiento complejo de la respuesta : {e}")
