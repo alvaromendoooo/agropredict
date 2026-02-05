@@ -11,10 +11,16 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBIT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABIIT_PASS}
+    networks:
+      - broker
     volumes:
       - rabbitmq-lib:/var/lib/rabbitmq
       - rabbitmq-log:/var/log/rabbitmq
       - ./rabbit_enabled_plugins:/etc/rabbitmq/enabled_plugins # Habilitar plugins adicionales
+
+networks:
+  broker:
+    external: true
 
 volumes:
   rabbitmq-lib:

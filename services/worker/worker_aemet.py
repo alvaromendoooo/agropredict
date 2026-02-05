@@ -36,7 +36,7 @@ print("Cliente ollama creado", flush = True)
 
 # Configuracion base de la caché Redis.
 cache = RedisCache(
-    host = os.getenv('REDIS_HOST'),
+    host = os.getenv('REDIS_HOST', 'localhost'),
     port = os.getenv('REDIS_PORT'),
     password = os.getenv('REDIS_PASSWORD'),
     default_ttl = 3600
