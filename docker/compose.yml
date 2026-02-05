@@ -10,7 +10,9 @@ services:
         MYSQL_USER: ${MYSQL_USER}
         MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
-        - "3307:3306"
+      - "3307:3306"
+    networks:
+      - broker
     volumes:
         - mariadb_data:/var/lib/mysql 
     restart: unless-stopped
@@ -28,12 +30,16 @@ services:
     ports:
       - "6379:6379"
     command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASS} # Almacena datos cada 20 seg, solo muestra warnings
+    networks:
+      - broker
     volumes:
       - cache:/data
 
   mcp-server:
     image: mendo1/agro-predict:mcp-server-1.0
     container_name: mcp-server
+    networks:
+      - broker
     volumes:
       - mcp_data:/var/lib/server
     ports:
@@ -45,6 +51,8 @@ services:
     container_name: ollama-service
     ports:
       - "11434:11434"
+    networks:
+      - broker
     volumes:
       - ollama_models:/root/.ollama
     environment:
@@ -82,6 +90,8 @@ services:
       - aemet-data:/app/private/aemet
     ports: 
       - "4000:4000"
+    networks:
+      - broker
     restart: unless-stopped
 
   siar-service:
@@ -92,6 +102,8 @@ services:
     env_file: .env
     ports:
       - "8086:8086"
+    networks:
+      - broker
     restart: unless-stopped
   
   itacyl-service:
@@ -103,7 +115,41 @@ services:
       - .env
     ports:
       - "8087:8087"
+    networks:
+      - broker
     restart: unless-stopped
+  
+  ia-service:
+    image: mendo1/agro-predict:ia-service-1.0
+    container_name: ia-service
+    environment:
+      - MCP_SERVER_URL=${MCP_SERVER_URL}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - OLLAMA_HOST=${OLLAMA_HOST}
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - OLLAMA_NUM_PREDICT=${OLLAMA_NUM_PREDICT}
+      - RABBITMQ_CONNECTION=${RABBITMQ_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - QUEUE_IN_NAME=${QUEUE_IN_NAME}
+      - QUEUE_OUT_NAME=${QUEUE_OUT_NAME}
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASS=${RABBITMQ_PASS}
+    env_file:
+      - .env
+    ports:
+      - "8088:8088"
+    depends_on:
+      - ollama
+      - mcp-server
+      - cache
+    networks:
+      - broker
+    restart: unless-stopped
+
+networks:
+  broker:
+    external: true
 
 volumes:
   mariadb_data:
