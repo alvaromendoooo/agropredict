@@ -24,7 +24,7 @@ load_dotenv()
 config = {
     "mcpServers": {
         "local_server": {
-            "url": "http://localhost:9001/mcp"
+            "url": os.getenv('MCP_SERVER_URL', 'http://localhost:9001/mcp')
         }
     }
 }
