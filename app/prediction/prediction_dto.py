@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import List
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 
 class NivelHelada(str, Enum):
@@ -28,11 +28,33 @@ class TipoAlerta(str, Enum):
     PREVENTIVA = "preventiva"
     CRITICA = "critica"
 
+class TipoPrediccion(str, Enum):
+    CURRENT = "hoy",
+    TOMORROW = "manana",
+    AFTERTOMORROW = "pasadomanana"
+
 @dataclass
 class AlertaDTO:
     mensaje : str
     recomendacion : str
     nivel : TipoAlerta
+
+@dataclass
+class RegistroTempMinDTO:
+    temperatura_minima_registrada : float
+    fecha_temp_minima_registrada : datetime
+
+@dataclass
+class RiesgoHeladaBlancaDTO:
+    humedad_max : float
+    fecha_humedad_max : datetime
+    precision : TipoPrecision
+
+@dataclass
+class RiesgoHeladaNegraDTO:
+    humedad_min : float
+    fecha_humedad_min : datetime
+    precision : TipoPrecision
 
 @dataclass
 class ContextoCalculoDTO:
@@ -42,10 +64,21 @@ class ContextoCalculoDTO:
     fecha_generacion : datetime
 
 @dataclass
-class RiesgoHeladaDTO:
+class RiesgoHeladaBaseDTO:
     nivel : NivelHelada
-    temperatura_minima_estimada : float
     comentarios : str
     alertas : List[AlertaDTO]
     contexto : ContextoCalculoDTO
+    tipo_prediccion : TipoPrediccion
+
+@dataclass
+class RiesgoHeladaObservadaDTO(RiesgoHeladaBaseDTO):
+    fecha_comiezo_registros : date
+    fecha_fin_registros : date
+    registro_temperatura_minima : RegistroTempMinDTO
+    riesgo_helada_blanca : RiesgoHeladaBlancaDTO
+    riesgo_helada_negra : RiesgoHeladaNegraDTO
+    
+@dataclass
+class RiesgoHeladaFuturaDTO(RiesgoHeladaBaseDTO):
     precision : TipoPrecision

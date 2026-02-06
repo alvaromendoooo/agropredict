@@ -12,21 +12,19 @@ from flask import request
 
 logger = logging.getLogger(__name__)
 
-@helada_bp.route('/heladas/<string:dato>', methods = ['GET'])
+@helada_bp.route('/heladas/observadas/<string:tipo>', methods = ['GET'])
 @log('../logs/fichero_salida.json')
-def prediccion_helada(
-    dato : str
+def prediccion_heladas_observadas(
+    tipo : str
 ):
     try:
 
         province_code = request.args.get('province')
         estacion_code = request.args.get('estacion')
-        start_date = request.args.get('start')
-        end_date = request.args.get('end')
 
 
         # Comprobación de parámetros recibidos
-        if not all([start_date, end_date, dato]):
+        if not tipo:
             raise APIException(
                 message = "Todos los parámetros deben estar definidos",
                 status = 400,
@@ -41,15 +39,47 @@ def prediccion_helada(
                 error = 'Invalid parameters'
             )
 
-        datos_prediccion = HeladaPredictionService.obtener_predicciones_helada(
+        datos_prediccion = HeladaPredictionService.obtener_predicciones_helada_observadas(
             province_code = province_code,
             estacion_code = estacion_code,
-            type = dato,
-            start_date = start_date,
-            end_date = end_date
+            type = tipo
         )
 
         return dataclass_to_json(datos_prediccion)
+    except APIException as e:
+        logger.error(f'API Exception: {e}')
+        return jsonify(
+            {
+                'message' : 'Provider error',
+                'status' : '502',
+                'error' : str(e)
+            }
+        ), 502
+        
+@helada_bp.route('/heladas/futuras/<string:zona>/<string:prediccion>', methods = ['GET'])
+@log('../logs/fichero_salida.json')
+def prediccion_heladas_futuras(
+    zona : str,
+    prediccion : str
+):
+    try:
+        provinciaId = request.args.get('provinciaId')
+        ccaaId = request.args.get('ccaaId')
+
+        if not zona and prediccion:
+            raise APIException(
+                message = 'Todos los parámetros deben estar definidos',
+                status = 400,
+                error = 'Invalid parameters'
+            )
+        
+        if provinciaId and ccaaId:
+            raise APIException(
+                message = 'Solo se puede indicar el id de la provincia o el de la comunidad, no los dos',
+                status = 400,
+                error = 'Invalid parameters'
+            )
+    
     except APIException as e:
         logger.error(f'API Exception: {e}')
         return jsonify(
