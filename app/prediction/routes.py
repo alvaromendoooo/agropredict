@@ -17,8 +17,19 @@ logger = logging.getLogger(__name__)
 def prediccion_heladas_observadas(
     tipo : str
 ):
-    try:
+    """
+    Endpoint para obtener la prediccion de heladas para el dia de hoy
 
+    Parámetros de la query:
+    - province: Codigo de la provincia (opcional)
+    - estacion: Codigo de la estacion (opcional)
+    
+    :param tipo: Tipo de dato a solicitar (Hora, Dia, Semana)
+    :type tipo: str
+    :return: JSON con la predicción de riesgo de helada actual
+    """
+    try:
+        # Datos obtenidos de las querys sobre la petición
         province_code = request.args.get('province')
         estacion_code = request.args.get('estacion')
 
@@ -38,23 +49,46 @@ def prediccion_heladas_observadas(
                 status = 400,
                 error = 'Invalid parameters'
             )
+        
+        if not province_code and not estacion_code:
+            raise APIException(
+                message = "Al menos se debe especificar uno de los dos codigos a solicitar (province, estacion)",
+                status = 400,
+                error = 'Invalid parameters'
+            )
 
+        # Obtengo la prediccion
         datos_prediccion = HeladaPredictionService.obtener_predicciones_helada_observadas(
             province_code = province_code,
             estacion_code = estacion_code,
-            type = tipo
+            type = tipo.lower()
         )
 
-        return dataclass_to_json(datos_prediccion)
+        return dataclass_to_json(datos_prediccion), 200
+    
     except APIException as e:
-        logger.error(f'API Exception: {e}')
-        return jsonify(
-            {
-                'message' : 'Provider error',
-                'status' : '502',
-                'error' : str(e)
-            }
-        ), 502
+        logger.error(f'API Exception en prediccion_heladas_observadas: {e}')
+        return jsonify({
+            'message': e.message,
+            'status': e.status,
+            'error': e.error
+        }), e.status
+    
+    except ValueError as e:
+        logger.error(f'ValueError en prediccion_heladas_observadas: {e}')
+        return jsonify({
+            'message': 'Error al procesar los datos',
+            'status': 400,
+            'error': str(e)
+        }), 400
+    
+    except Exception as e:
+        logger.error(f'Error inesperado en prediccion_heladas_observadas: {e}', exc_info=True)
+        return jsonify({
+            'message': 'Error interno del servidor',
+            'status': 500,
+            'error': 'Internal server error'
+        }), 500
         
 @helada_bp.route('/heladas/futuras/<string:zona>/<string:prediccion>', methods = ['GET'])
 @log('../logs/fichero_salida.json')

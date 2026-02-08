@@ -65,14 +65,25 @@ class DataServiceClient(BaseClient):
             logger.error("No se pueden indicar a la vez el codigo de provincia y el codigo de estacion, solo uno de ellos")
             return None
         
+        datos = self.get_historic_data_day(
+            province_code = province_code,
+            estacion_code = estacion_code,
+            type = type,
+            start_date = start_date,
+            end_date = end_date
+        )
+
+        # Para ingesta de data inexistente
+        """
         resultado = []
-        
         fecha = start_date
         while fecha <= end_date:
             fecha_aux = fecha
-            fecha += timedelta(days=7)
+            fecha += timedelta(days=1)
             try:
-                # Obtenemos datos de semana en semana para no hacerlo tan pesado
+                # Dejo tiempo para que dataservice procese la anterior consulta
+                #time.sleep(20)
+                # Llamada a la peticion de datos
                 dato = self.get_historic_data_day(
                     province_code = province_code,
                     estacion_code = estacion_code,
@@ -84,18 +95,24 @@ class DataServiceClient(BaseClient):
                 if not dato:
                     raise ValueError("No se ha recibido datos del cliente, posible error")
                 
+                # Control de errores producidos en el servicio al que me comunico
+                if dato['status'] == 'FAILED':
+                    logger.warning(f"Fallo obteniendo datos para la fecha {fecha} : {e}")
+                    time.sleep(90) # Espera recomendada por SiAR
+
                 resultado.append(dato)
+
             except Exception as e:
                 # No quiero que se pare la ejecución del bucle, debido a que será un límite de consumo de SiAR
                 logger.warning(f"Fallo obteniendo datos para la fecha {fecha} : {e}")
                 # Esperamos el tiempo estipulado por SiAR hasta la siguiente petición
                 # Una vez estén todos los datos en la BD, esto no nos preocupará
-                time.sleep(timedelta(minutes=1.5))
+                time.sleep(90)
         
         if not resultado:
             return None
-        
-        return resultado
+        """
+        return datos
         
     @circuit(cls = CircuitBreakerPersonalizado)
     def get_future_data(

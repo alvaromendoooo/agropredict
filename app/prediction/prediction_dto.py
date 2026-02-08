@@ -41,20 +41,15 @@ class AlertaDTO:
 
 @dataclass
 class RegistroTempMinDTO:
+    dias_bajo_cero : int
     temperatura_minima_registrada : float
-    fecha_temp_minima_registrada : datetime
+    fecha_temp_bajo_cero : list[datetime]
 
 @dataclass
-class RiesgoHeladaBlancaDTO:
-    humedad_max : float
-    fecha_humedad_max : datetime
-    precision : TipoPrecision
-
-@dataclass
-class RiesgoHeladaNegraDTO:
-    humedad_min : float
-    fecha_humedad_min : datetime
-    precision : TipoPrecision
+class RiesgoHeladaTipoDTO:
+    humedad : float
+    temperatura : float
+    timestamp : datetime
 
 @dataclass
 class ContextoCalculoDTO:
@@ -67,7 +62,7 @@ class ContextoCalculoDTO:
 class RiesgoHeladaBaseDTO:
     nivel : NivelHelada
     comentarios : str
-    alertas : List[AlertaDTO]
+    alertas : list[AlertaDTO]
     contexto : ContextoCalculoDTO
     tipo_prediccion : TipoPrediccion
 
@@ -76,8 +71,8 @@ class RiesgoHeladaObservadaDTO(RiesgoHeladaBaseDTO):
     fecha_comiezo_registros : date
     fecha_fin_registros : date
     registro_temperatura_minima : RegistroTempMinDTO
-    riesgo_helada_blanca : RiesgoHeladaBlancaDTO
-    riesgo_helada_negra : RiesgoHeladaNegraDTO
+    riesgos_heladas_blancas : list[RiesgoHeladaTipoDTO]
+    riesgos_heladas_negras : list[RiesgoHeladaTipoDTO]
     
 @dataclass
 class RiesgoHeladaFuturaDTO(RiesgoHeladaBaseDTO):
