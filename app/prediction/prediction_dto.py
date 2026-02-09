@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 from datetime import datetime, date
 from enum import Enum
 
@@ -46,10 +46,40 @@ class RegistroTempMinDTO:
     fecha_temp_bajo_cero : list[datetime]
 
 @dataclass
+class UmbralesCultivoDTO:
+    critico : float
+    alto : float
+    moderado : float
+    bajo : float
+
+@dataclass
+class AnalisisCultivoDTO:
+    cultivo : str
+    nombre_cientifico : str
+    etapa_fenologica : str
+    temperatura_evaluada : str
+    nivel_riesgo : str
+    umbrales : UmbralesCultivoDTO
+    alertas : list[AlertaDTO]
+
+@dataclass
+class ResumenCultivoDTO:
+    total_cultivos_evaluados : int
+    cultivos_en_riesgo_critico : int
+    cultivos_en_riesgo_alto : int
+    cultivos_en_riesgo_moderado : int
+    cultivos_en_riesgo_debil : int
+    cultivos_sin_riesgo : int
+    evaluaciones : list[AnalisisCultivoDTO]
+
+
+@dataclass
 class RiesgoHeladaTipoDTO:
     humedad : float
     temperatura : float
     timestamp : datetime
+    estacion_id_temp : int
+    estacion_id_hum : list[int]
 
 @dataclass
 class ContextoCalculoDTO:
@@ -65,6 +95,7 @@ class RiesgoHeladaBaseDTO:
     alertas : list[AlertaDTO]
     contexto : ContextoCalculoDTO
     tipo_prediccion : TipoPrediccion
+    evaluaciones_cultivo : Optional[ResumenCultivoDTO]
 
 @dataclass
 class RiesgoHeladaObservadaDTO(RiesgoHeladaBaseDTO):

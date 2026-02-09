@@ -32,7 +32,8 @@ def prediccion_heladas_observadas(
         # Datos obtenidos de las querys sobre la petición
         province_code = request.args.get('province')
         estacion_code = request.args.get('estacion')
-
+        incluir_evaluacion = request.args.get('evaluacion', 'false').lower()
+        cultivos = request.args.get('cultivos')
 
         # Comprobación de parámetros recibidos
         if not tipo:
@@ -57,11 +58,26 @@ def prediccion_heladas_observadas(
                 error = 'Invalid parameters'
             )
 
+        incluir_cultivos = incluir_evaluacion in ['true', '1', 'yes', 'si']
+        cultivo_lista = None
+        if cultivos:
+            cultivo_lista = [c.strip().lower() for c in cultivos.split(',')]
+            cultivos_disponibles = HeladaPredictionService.listar_cultivos_disponibles()
+            for c in cultivo_lista:
+                if c not in cultivos_disponibles:
+                    raise APIException(
+                        message = f"Cultivos no reconocidos: {', '.join(c)}",
+                        status = 400,
+                        error = 'Invalid corp params'
+                    )
+
         # Obtengo la prediccion
         datos_prediccion = HeladaPredictionService.obtener_predicciones_helada_observadas(
             province_code = province_code,
             estacion_code = estacion_code,
-            type = tipo.lower()
+            type = tipo.lower(),
+            incluir_evaluacion_cultivos = incluir_cultivos,
+            cultivos = cultivo_lista
         )
 
         return dataclass_to_json(datos_prediccion), 200
@@ -89,7 +105,31 @@ def prediccion_heladas_observadas(
             'status': 500,
             'error': 'Internal server error'
         }), 500
-        
+
+@helada_bp.route('/heladas/cultivos')
+@log('../logs/fichero_salida.json')
+def listar_cultivos():
+    """
+    Endpoint encargado de mostrar al cliente los cultivos disponibles
+    """
+    try:
+        cultivos_disponibles = HeladaPredictionService.listar_cultivos_disponibles()
+
+        return jsonify({
+            'total' : len(cultivos_disponibles),
+            'cultivos' : cultivos_disponibles,
+            'mensaje' : 'Use este nombre en el parametro "cultivos" sobre los demas endpoints para filtrar la evaluacion de riesgo de helada en cultivos especificos'
+        }), 200
+    
+    except Exception as e:
+        logger.error(f'Error listando los cultivos disponibles: {e}')
+        return jsonify({
+            'message' : 'Error al obtener el listado de cultivos disponibles',
+            'status' : 500,
+            'error' : str(e)
+        }), 500
+
+
 @helada_bp.route('/heladas/futuras/<string:zona>/<string:prediccion>', methods = ['GET'])
 @log('../logs/fichero_salida.json')
 def prediccion_heladas_futuras(
