@@ -245,10 +245,12 @@ class HeladaPredictionService():
         cultivo = evaluacion_cultivos.get('cultivo')
         etapa = evaluacion_cultivos.get('etapa_fenologica')
         temperatura = evaluacion_cultivos.get('temperatura')
+        
+        alerta = None
 
         # Recomendaciones especificas para cultivos y nivel de riesgo
         recomendaciones = {
-            "fuertes" : {
+            "fuerte" : {
                 "almendro" : "CRITICO : Portejer brotes de almendro con mantas términas",
                 "cerezo" : "CRITICO : Utilizar Red Protectora para Arboles Frutales",
                 "melocotonero" : "CRITICO: Utilizar malla o velo anti-heladas"
@@ -265,7 +267,12 @@ class HeladaPredictionService():
 
         if nivel_riesgo in ["fuerte", "moderada", "debil"]:
             categoria_recomendacion = recomendaciones.get(nivel_riesgo, {})
-            recomendacion_cultivo = categoria_recomendacion.get(cultivo.lower(), {})
+
+            # Caso general para todo tipo de cultivo analizado
+            if nivel_riesgo == "debil":
+                recomendacion_cultivo = categoria_recomendacion['default']
+            else:
+                recomendacion_cultivo = categoria_recomendacion.get(cultivo.lower(), {})
 
             tipo_alerta = {
                 "fuerte" : TipoAlerta.CRITICA,
@@ -279,7 +286,7 @@ class HeladaPredictionService():
                 nivel = tipo_alerta
             )
             
-        return alerta if alerta else None
+        return alerta
         
 
     @staticmethod
@@ -353,6 +360,9 @@ class HeladaPredictionService():
                     alertas = alertas
                 )
             )
+            # Reset de alertas obtenidas en la evaluación para no cargar
+            # con ellas en otras evaluaciones
+            alertas = []
         
         return ResumenCultivoDTO(
             total_cultivos_evaluados = len(cultivos),

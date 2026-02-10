@@ -39,7 +39,6 @@ class UmbralTemperatura:
         :return: Tupla (nivel_riesgo, descripcion)
         :rtype: tuple[str, str]
         """
-
         if temp <= self.critico:
             return ("fuerte", "Riesgo crítico de daño severo")
         elif temp <= self.alto:
@@ -47,6 +46,8 @@ class UmbralTemperatura:
         elif temp <= self.moderado:
             return ("debil", "Riego bajo de daño, pero tomar precauciones futuras")
         elif temp <= self.bajo:
+            return ("sin_riesgo", "No existen riesgos de daño")
+        else:
             return ("sin_riesgo", "No existen riesgos de daño")
         
 @dataclass
@@ -313,12 +314,11 @@ def evaluar_riesgo_cultivo(
                 }
         else:
             raise ValueError("Si no se indica la etapa fenologica, al menos se debe indicar el mes del año que se quiere analizar")
-    
+
     # Obtengo el umbral de temperatura por la etapa_fenologica
     umbral = cultivo.get_umbral(
         etapa = etapa_fenologica
     )
-
     if not umbral:
         return {
             "error" : f"No hay umbrales disponibles para {cultivo.nombre} para la etapa {etapa.value}"
@@ -332,7 +332,7 @@ def evaluar_riesgo_cultivo(
     return {
         "cultivo" : cultivo.nombre,
         "nombre_cientifico" : cultivo.nombre_cientifico,
-        "etapa_fenologica" : etapa.value,
+        "etapa_fenologica" : etapa_fenologica.value,
         "temperatura" : temperatura,
         "nivel_riesgo" : nivel_riesgo,
         "descripcion" : descripcion,
