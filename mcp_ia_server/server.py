@@ -74,7 +74,8 @@ def main():
                 "precipitaciones",
                 "existencias_de_heladas",
                 "zonas_de_heladas",
-                "cotas_de_nieve"
+                "cotas_de_nieve",
+                "temperaturas_localidades"
             ]
             
             # Asegurar que todos los campos existan
@@ -139,7 +140,26 @@ def main():
 
     Todos los datos relacionados a los campos deben encontrarse en formato string, integer, float o bool. No debes utilizar objetos como valor de campo.
     Si es necesario incluir el valor como objeto, sustitúyelo por un string que almacene toda esa información.
-        
+    No te permito que si encuentras información relacionada con estos campos, me indiques un 1 como he visto que sueles hacer, a menos que el texto adjuntado
+    indique esos valores con enteros, en ese caso sí, pero en los demás casos, indica el valor de campo con la información en formato string.
+
+    Una última cosa que me gustaría que hicieras es que si en el texto adjuntado encuentras información sobre temperaturas mínimas y máximas previstas 
+    para alguna localidad concreta, lo almacenaras en el json resultante que te pido.
+             
+    Esto podría ser un campo dentro del json resultante que tendría la siguiente estructura:
+    "temperaturas_localidades" : {{
+        "plasencia" : {{
+            "temp_max" : 14,
+            "temp_min" : 17
+        }},
+        "trujillo": {{
+            ...
+        }}
+        ...
+    }}
+    Los valores de temp_max y temp_min para cada localidad me gustaría que estén en formato int.
+    Si no encuentras información en el texto que este relacionada con este asunto, al campo del json resultante "temperaturas_localidades" asignale el valor de null.
+                
     TEXTO:
     {texto}
     """}
