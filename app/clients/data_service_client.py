@@ -143,3 +143,19 @@ class DataServiceClient(BaseClient):
         except Exception as e:
             logger.error(f"Algo fallo en la comunicación con el servicio : {e}")
             return None
+        
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_localidades_data(self):
+        try:
+            url = f"{self.base_forecast_url}/localidades"
+
+            response = self._make_request(
+                method = 'GET',
+                url = url
+            )
+
+            return response.json()
+        
+        except Exception as e:
+            logger.errro(f"Algo fallo en la comunicación con el servicio : {e}")
+            return None

@@ -137,8 +137,14 @@ def prediccion_heladas_futuras(
     prediccion : str
 ):
     try:
+        # Parametros de query
         provinciaId = request.args.get('provinciaId')
         ccaaId = request.args.get('ccaaId')
+        incluir_evaluacion_cultivo = request.args.get('evaluacion_cul', 'false').lower()
+        incluir_evaluacion_localidad = request.args.get('evaluacion_loc', 'false').lower()
+        cultivos = request.args.get('cultivos')
+        localidades = request.args.get('localidades')
+
 
         if not zona and prediccion:
             raise APIException(
@@ -153,13 +159,66 @@ def prediccion_heladas_futuras(
                 status = 400,
                 error = 'Invalid parameters'
             )
-    
+
+        incluir_cultivos = incluir_evaluacion_cultivo in ['true', '1', 'yes', 'si']
+        cultivo_lista = None
+        if cultivos:
+            cultivo_lista = [c.strip().lower() for c in cultivos.split(',')]
+            cultivos_disponibles = HeladaPredictionService.listar_cultivos_disponibles()
+            for c in cultivo_lista:
+                if c not in cultivos_disponibles:
+                    raise APIException(
+                        message = f"Cultivos no reconocidos: {', '.join(c)}",
+                        status = 400,
+                        error = 'Invalid corp params'
+                    )
+                
+        incluir_localidades = incluir_evaluacion_localidad in ['true', '1', 'yes', 'si']
+        localidad_lista = None
+        if localidades:
+            localidad_lista = [l.strip().lower() for l in localidades.split(',')]
+            localidades_disponibles = HeladaPredictionService.listar_localidades_disponibles()
+            for l in localidad_lista:
+                if l not in localidades_disponibles:
+                    raise APIException(
+                        message = f"Localidades no reconocidas: {', '.join(l)}",
+                        status = 400,
+                        error = 'Invalid locality params'
+                    )
+
+        datos = HeladaPredictionService.obtener_predicciones_helada_futuras(
+            province_code = provinciaId,
+            ccaa_code = ccaaId,
+            zona = zona,
+            prediccion = prediccion,
+            incluir_eval_localidad = incluir_localidades,
+            incluir_eval_cultivo = incluir_cultivos,
+            localidades = localidad_lista,
+            cultivos = cultivo_lista
+        )
+        
+        return dataclass_to_json(datos), 200
+
     except APIException as e:
-        logger.error(f'API Exception: {e}')
-        return jsonify(
-            {
-                'message' : 'Provider error',
-                'status' : '502',
-                'error' : str(e)
-            }
-        ), 502
+        logger.error(f'API Exception en prediccion_heladas_futuras: {e}')
+        return jsonify({
+            'message': e.message,
+            'status': e.status,
+            'error': e.error
+        }), e.status
+    
+    except ValueError as e:
+        logger.error(f'ValueError en prediccion_heladas_futuras: {e}')
+        return jsonify({
+            'message': 'Error al procesar los datos',
+            'status': 400,
+            'error': str(e)
+        }), 400
+    
+    except Exception as e:
+        logger.error(f'Error inesperado en prediccion_heladas_futuras: {e}', exc_info=True)
+        return jsonify({
+            'message': 'Error interno del servidor',
+            'status': 500,
+            'error': 'Internal server error'
+        }), 500

@@ -63,6 +63,25 @@ class AnalisisCultivoDTO:
     alertas : list[AlertaDTO]
 
 @dataclass
+class CotaNieveDTO:
+    cota_minima : int
+    cota_maxima : int
+    hay_descenso : bool
+    texto_original : str
+
+@dataclass
+class AnalisisLocalidadDTO:
+    localidad : str
+    provincia : str
+    altitud_metros : int
+    temperatura_minima : Optional[int]
+    temperatura_maxima : Optional[int]
+    nivel_riesgo : str
+    resumen : str
+    recomendaciones : list[str]
+    cota_nieve : Optional[CotaNieveDTO]
+
+@dataclass
 class ResumenCultivoDTO:
     total_cultivos_evaluados : int
     cultivos_en_riesgo_critico : int
@@ -72,6 +91,28 @@ class ResumenCultivoDTO:
     cultivos_sin_riesgo : int
     evaluaciones : list[AnalisisCultivoDTO]
 
+@dataclass
+class ResumenEvaluacionLocalidadDTO:
+    total_localidades_evaluadas : int
+    localidades_riesgo_critico : int
+    localidades_riesgo_alto : int
+    localidades_riesgo_moderado : int
+    localidades_riesgo_bajo : int
+    localidades_sin_riesgo : int
+    evaluaciones : List[AnalisisLocalidadDTO]
+
+@dataclass
+class DatoAEMETDTO:
+    estado_cielo : Optional[str]
+    tendencia_temp_general : Optional[str]
+    tendencia_temp_maxima : Optional[str]
+    tendencia_temp_minima : Optional[str]
+    rachas_viento : Optional[str]
+    precipitaciones : Optional[str]
+    cotas_nieve : Optional[str]
+    existencia_heladas : Optional[str]
+    zona_heladas = Optional[str]
+    aparicion_nieblas = Optional[str]
 
 @dataclass
 class RiesgoHeladaTipoDTO:
@@ -96,15 +137,17 @@ class RiesgoHeladaBaseDTO:
     contexto : ContextoCalculoDTO
     tipo_prediccion : TipoPrediccion
     evaluaciones_cultivo : Optional[ResumenCultivoDTO]
+    riesgos_heladas_blancas : list[RiesgoHeladaTipoDTO]
+    riesgos_heladas_negras : list[RiesgoHeladaTipoDTO]
 
 @dataclass
 class RiesgoHeladaObservadaDTO(RiesgoHeladaBaseDTO):
     fecha_comiezo_registros : date
     fecha_fin_registros : date
     registro_temperatura_minima : RegistroTempMinDTO
-    riesgos_heladas_blancas : list[RiesgoHeladaTipoDTO]
-    riesgos_heladas_negras : list[RiesgoHeladaTipoDTO]
     
 @dataclass
 class RiesgoHeladaFuturaDTO(RiesgoHeladaBaseDTO):
     precision : TipoPrecision
+    datos_meteorologicos : DatoAEMETDTO
+    evaluacion_localidades : Optional[ResumenEvaluacionLocalidadDTO]
