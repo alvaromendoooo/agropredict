@@ -271,22 +271,22 @@ class HeladaPredictionService():
             }
             
     @staticmethod
-    def _generate_alerta_cultivo(
-        evaluacion_cultivos : Dict
+    def _generate_alerta_variedad(
+        evaluacion_variedades : Dict
     ) -> List[AlertaDTO]:
         """
-        Genera alertas especificas por cultivo en base a sus evaluaciones
+        Genera alertas especificas por variedad de cultivo en base a sus evaluaciones
         
-        :param evaluacion_cultivos: Datos de evaluacion sobre los cultivos solicitados
-        :type evaluacion_cultivos: Dict
-        :return: Lista de alertas sobre cada cultivo solicitado
+        :param evaluacion_variedades: Datos de evaluacion sobre las variedades de cultivo solicitados
+        :type evaluacion_variedades: Dict
+        :return: Lista de alertas sobre cada variedad de cultivo solicitado
         :rtype: List[AlertaDTO]
         """
 
-        nivel_riesgo = evaluacion_cultivos.get('nivel_riesgo')
-        cultivo = evaluacion_cultivos.get('cultivo')
-        etapa = evaluacion_cultivos.get('etapa_fenologica')
-        temperatura = evaluacion_cultivos.get('temperatura')
+        nivel_riesgo = evaluacion_variedades.get('nivel_riesgo')
+        variedades = evaluacion_variedades.get('variedades')
+        etapa = evaluacion_variedades.get('etapa_fenologica')
+        temperatura = evaluacion_variedades.get('temperatura')
         
         alerta = None
 
@@ -310,11 +310,11 @@ class HeladaPredictionService():
         if nivel_riesgo in ["fuerte", "moderada", "debil"]:
             categoria_recomendacion = recomendaciones.get(nivel_riesgo, {})
 
-            # Caso general para todo tipo de cultivo analizado
+            # Caso general para todo tipo de variedades analizado
             if nivel_riesgo == "debil":
-                recomendacion_cultivo = categoria_recomendacion['default']
+                recomendacion_variedades = categoria_recomendacion['default']
             else:
-                recomendacion_cultivo = categoria_recomendacion.get(cultivo.lower(), {})
+                recomendacion_variedades = categoria_recomendacion.get(variedades.lower(), {})
 
             tipo_alerta = {
                 "fuerte" : TipoAlerta.CRITICA,
@@ -323,8 +323,8 @@ class HeladaPredictionService():
             }.get(nivel_riesgo, TipoAlerta.INFORMATIVA)
 
             alerta = AlertaDTO(
-                mensaje = f"Cultivo {cultivo} en etapa de {etapa}: riesgo {nivel_riesgo} a temperatura {temperatura:.1}C",
-                recomendacion = recomendacion_cultivo,
+                mensaje = f"Variedad {variedades} en etapa de {etapa}: riesgo {nivel_riesgo} a temperatura {temperatura:.1}C",
+                recomendacion = recomendacion_variedades,
                 nivel = tipo_alerta
             )
             
@@ -332,84 +332,162 @@ class HeladaPredictionService():
 
     
 
-    @staticmethod
-    def _evaular_riesgo_cultivos(
+    @classmethod
+    def _evaular_nivel_por_umbral(
+        cls,
+        temperatura : float,
+        umbrales : list
+    ) -> tuple:
+        """
+        Determina el nivel de riesgo y umbral activo comparando la temperatura 
+        contra los umbrales de cada etapa fenologica de la variedad.
+
+        Recorre los umbrales en orden de etapa (orden ASC) y aplica el primero cuyos
+        valores de criticidad encajan con la temperatura recibida.
+        El umbral con menor temperatura activa determina el nivel.
+
+        :param temperatura: Temperatura minima a evaluar
+        :type temperatura: float
+        :param umbrales: Lista de diccionarios con claves critico, alto, moderado, bajo y etapa fenologica
+        :type umbrales: list
+        :return Tupla(nivel_riesgo: str, umbral_activo: dict) | None
+        :rtype: tuple
+        """
+
+        umbrales_ordenados = sorted(
+            umbrales,
+            key = lambda u : u.get('etapa_fenologica', {}).get('orden', 999)
+        )
+
+        nivel = 'sin_riesgo'
+        umbral_activo = None
+
+        for umbral in umbrales_ordenados:
+            critico = umbral.get('critico')
+            alto = umbral.get('alto')
+            moderado = umbral.get('moderado')
+            bajo = umbral.get('bajo')
+
+            # Solo evaluo umbrales que tienen al menos un valor definido
+            if all(v is None for v in [critico, alto, moderado, bajo]):
+                continue
+
+            if critico is not None and temperatura <= critico:
+                nivel = 'critico'
+                umbral_activo = umbral
+                break # Nivel maximo, no hace falta seguir
+            elif alto is not None and temperatura <= critico:
+                if nivel in ('sin_riesgo', 'debil', 'moderado'):
+                    nivel = 'alto'
+                    umbral_activo = umbral
+            elif moderado is not None and temperatura <= moderado:
+                if nivel in ('sin_riesgo', 'debil'):
+                    nivel = 'moderado'
+                    umbral_activo = umbral
+            elif bajo is not None and temperatura <= bajo:
+                if nivel == 'sin_riesgo':
+                    nivel = 'debil'
+                    umbral_activo = umbral
+
+        return nivel, umbral_activo
+    
+    @classmethod
+    def _evaluar_riesgo_variedades(
+        cls, 
         temperatura_minima : float,
         mes : int,
-        cultivos : Optional[list[str]] = None
+        variedades : Optional[list[str]] = None
     ) -> ResumenCultivoDTO:
         """
-        Evaula el riesgo de helada en cada uno de los cultivos pasados
-        
-        :param temperatura_minima: Temperatura minima a evaluar en cada cultivo
+        Evalúa el riesgo de helada para cada variedad solicitada
+        obtienendo sus umbrales dinámicamente desde data-service.
+
+        :param temperatura_minima: Temperatura minima a evaluar
         :type temperatura_minima: float
-        :param mes: Mes del año (1-12)
+        :param mes: Mes del año (1-12), reservado para lógica futura de etapa fenologica
         :type mes: int
-        :param cultivos: Lista con el nombre de los cultivos a analizar
-        :type cultivos: Optional[list[str]]
-        :return: DTO con el resumen de los cultivos analizados
+        :param variedades: Lista de variedades a analizar
+        :type variedades: Optional[list[str]]
+        :return: DTO con resumen de variedades analizadas
         :rtype: ResumenCultivoDTO
         """
 
-        # 1. Obtengo los datos evaluados que devuelve crops_threshold
-        evaluacion = evaluar_riesgo_varios_cultivos(
-            temperatura = temperatura_minima,
-            mes = mes,
-            cultivos = cultivos
-        )
+        cliente = cls._get_cliente()
 
-        # Convertir los datos evaluados obtenidos a DTO resultante
-        analisis_cultivos = []
+        analisis_variedades = []
         riesgos = HeladaPredictionService._recuento_riesgos()
 
-        alertas = []
-        for ev in evaluacion:
-            alerta_evaluacion = HeladaPredictionService._generate_alerta_cultivo(
-                evaluacion_cultivos = ev
+        for nombre_variedad in (variedades or []):
+            # 1. Obtengo los umbrales de las variedades desde data-service
+            umbrales = cliente.get_umbrales_variedad(
+                nombre_variedad = nombre_variedad
             )
-            alertas.append(alerta_evaluacion)
 
-            # Incremento los contadores
-            nivel = ev.get('nivel_riesgo')
-            if nivel == "fuerte":
+            # 2. Determino el nivel de riesgo comparando temperatura con umbrales
+            nivel, umbral_activo = HeladaPredictionService._evaular_nivel_por_umbral(
+                temperatura = temperatura_minima,
+                umbrales = umbrales
+            )
+
+            etapa_nombre = (
+                umbral_activo.get('etapa_fenologica', {}).get('nombre', 'Desconocida')
+                if umbral_activo else 'Sin etapa fenologica'
+            )
+
+            # 3. Genero las alertas especificas para esta variedad
+            alerta_evaluacion = HeladaPredictionService._generate_alerta_variedad(
+                evaluacion_variedades = {
+                    'nivel_riesgo' : nivel,
+                    'variedades':  nombre_variedad,
+                    'etapa_fenologica' : etapa_nombre,
+                    'temepratura' : temperatura_minima
+                }
+            )
+
+            # 4. Actualizo contadores de riesgos
+            if nivel == 'critico':
                 riesgos['critico'] += 1
-            elif nivel == "moderadas":
+            elif nivel == 'alto':
+                riesgos['alto'] += 1
+            elif nivel == 'moderado':
                 riesgos['moderado'] += 1
-            elif nivel == "debil":
+            elif nivel == 'debil':
                 riesgos['debil'] += 1
             else:
                 riesgos['sin_riesgo'] += 1
 
-            # Creacion del DTO AnalisisCultivo
-            analisis_cultivos.append(
+            # 5. Construyo el DTO de analisis
+            umbrales_dto = None
+            if umbral_activo:
+                umbrales_dto = UmbralesCultivoDTO(
+                    critico = umbral_activo.get('critico'),
+                    alto = umbral_activo.get('alto'),
+                    moderado = umbral_activo.get('moderado'),
+                    bajo = umbral_activo.get('bajo')
+                )
+
+            analisis_variedades.append(
                 AnalisisCultivoDTO(
-                    cultivo = ev['cultivo'],
-                    nombre_cientifico = ev['nombre_cientifico'],
-                    etapa_fenologica = ev['etapa_fenologica'],
-                    temperatura_evaluada = ev['temperatura'],
-                    nivel_riesgo = ev['nivel_riesgo'],
-                    umbrales = UmbralesCultivoDTO(
-                        critico = ev['umbrales']['critico'],
-                        alto = ev['umbrales']['alto'],
-                        moderado = ev['umbrales']['moderado'],
-                        bajo = ev['umbrales']['bajo']
-                    ),
-                    alertas = alertas
+                    variedad = nombre_variedad,
+                    nombre_cientifico = None,
+                    etapa_fenologica = etapa_nombre,
+                    temperatura_evaluada = temperatura_minima,
+                    nivel_riesgo = nivel,
+                    umbrales = umbrales_dto,
+                    alertas = [alerta_evaluacion] if alerta_evaluacion else []
                 )
             )
-            # Reset de alertas obtenidas en la evaluación para no cargar
-            # con ellas en otras evaluaciones
-            alertas = []
         
         return ResumenCultivoDTO(
-            total_cultivos_evaluados = len(cultivos),
-            cultivos_en_riesgo_critico = riesgos['critico'],
-            cultivos_en_riesgo_alto = riesgos['alto'],
-            cultivos_en_riesgo_moderado = riesgos['moderado'],
-            cultivos_en_riesgo_debil = riesgos['debil'],
-            cultivos_sin_riesgo = riesgos['sin_riesgo'],
-            evaluaciones = analisis_cultivos
+            total_variedades_evaluados = len(analisis_variedades),
+            variedades_en_riesgo_critico = riesgos['critico'],
+            variedades_en_riesgo_alto = riesgos['alto'],
+            variedades_en_riesgo_moderado = riesgos['moderado'],
+            variedades_en_riesgo_debil = riesgos['debil'],
+            variedades_sin_riesgo = riesgos['sin_riesgo'],
+            evaluaciones = analisis_variedades 
         )
+    
 
     @staticmethod
     def _evaluar_sin_cota(
@@ -482,7 +560,7 @@ class HeladaPredictionService():
             if temperatura_minima <= 0.0: # No necesita más factores para considerar riesgo crítico de heladas
                 score += 4
                 recomendaciones.append("Temperaturas minimas bajo cero previstas. Altas probabilidades de heladas")
-            elif temperatura_minima is 0.0:
+            elif temperatura_minima == 0.0:
                 if datos['rachas_viento']: # Condicionante para que existan heladas a temperatura 0.0
                     score += 3
                     recomendaciones.append("Temperaturas minimas en 0 absoluto, posibilidades altas de helada debido a la existencia de viento.")
@@ -731,7 +809,7 @@ class HeladaPredictionService():
                 )   
 
         elif isinstance(prediccion, ResumenCultivoDTO):
-            if prediccion.cultivos_en_riesgo_critico > 0:
+            if prediccion.variedades_en_riesgo_critico > 0:
                 return NivelHelada.FUERTE, AlertaDTO(
                     mensaje = "Riesgo crítico de daños por helada en cultivos sensibles.",
                     recomendacion = (
@@ -741,23 +819,23 @@ class HeladaPredictionService():
                     ),
                     nivel = TipoAlerta.CRITICA
                 )
-            elif prediccion.cultivos_en_riesgo_alto > 0:
+            elif prediccion.variedades_en_riesgo_alto > 0:
                 return NivelHelada.MODERADA, AlertaDTO(
                     mensaje = "Riesgo elevado de estrés térmico en cultivos.",
                     recomendacion = (
                         "Monitorizar temperaturas nocturnas y preparar sistemas de protección "
                         "si el cultivo se encuentra en fase sensible."
                     ),
-                    nivel = TipoAlerta.ALTA
+                    nivel = TipoAlerta.PREVENTIVA
                 )
-            elif prediccion.cultivos_en_riesgo_moderado > 0:
+            elif prediccion.variedades_en_riesgo_moderado > 0:
                 return NivelHelada.DEBIL, AlertaDTO(
                     mensaje = "Riesgo leve de helada en algunos cultivos.",
                     recomendacion = (
                         "No se esperan daños generalizados, pero conviene vigilar "
                         "cultivos tempranos o en fase de brotación."
                     ),
-                    nivel = TipoAlerta.MEDIA
+                    nivel = TipoAlerta.INFORMATIVA
                 )
             else:
                 return NivelHelada.SIN_RIESGO, AlertaDTO(
@@ -765,21 +843,27 @@ class HeladaPredictionService():
                     recomendacion = "No se prevén daños por helada.",
                     nivel = TipoAlerta.INFORMATIVA
                 )
-
+    
     @staticmethod
     def _build_observadas_predictions(
         data,
         fecha_inicio : date,
         fecha_fin : date,
-        incluir_evaluacion_cultivo : bool,
-        cultivos : Optional[list[str]] = None            
+        incluir_evaluacion_variedades : bool,
+        variedades : Optional[list[str]] = None            
     ) -> RiesgoHeladaObservadaDTO:
         """
         Construye los DTOs de predicciones de heladas sobre datos observados
         
         :param data: Datos historicos observados
         :param fecha_inicio: Fecha de inicio del periodo analizado
+        :type fecha_inicio: date
         :param fecha_fin: Fecha de finalización del periodo analizado
+        :type fecha_fin: date
+        :param incluir_evaluacion_variedades: Decide si se debe evaluar el riesgo en varieades o no
+        :type incluir_evaluacion_variedades: bool
+        :param variedades: Lista de variedes de cultivo a analizar (opcional)
+        :type variedades: Optional[list[str]]
         :return: DTO cargado
         :rtype: RiesgoHeladaDTO
         """
@@ -836,13 +920,13 @@ class HeladaPredictionService():
                 desviacion = Config.DESVIACION_HELADA 
             ) * 100 # Obtengo el porcentaje
 
-        # 5. Evaluación de cultivos
-        evaluacion_cultivos = None
-        if incluir_evaluacion_cultivo and stats_temp['temperatura_minima_absoluta']:
-            evaluacion_cultivos = HeladaPredictionService._evaular_riesgo_cultivos(
+        # 5. Evaluación de variedades de cultivo
+        evaluacion_variedades = None
+        if incluir_evaluacion_variedades and stats_temp['temperatura_minima_absoluta']:
+            evaluacion_variedades = HeladaPredictionService._evaular_riesgo_variedades(
                 temperatura_minima = stats_temp['temperatura_minima_absoluta'],
                 mes = fecha_fin.month,
-                cultivos = cultivos
+                variedades = variedades
             )
 
         # 6. Generación del contexto
@@ -882,17 +966,167 @@ class HeladaPredictionService():
             registro_temperatura_minima = registro_temp_min,
             riesgos_heladas_blancas = riesgos_heladas_blancas,
             riesgos_heladas_negras = riesgos_heladas_negras,
-            evaluaciones_cultivo = evaluacion_cultivos
+            evaluaciones_variedades = evaluacion_variedades
         )
     
+    @classmethod
+    def aplicar_condiciones_horas_frio(
+        cls,
+        variedades : list[str],
+        nivel_riesgo_actual : NivelHelada,
+        alertas : list
+    ) -> tuple:
+        """
+        Consulta las horas de frío acumuladas de cada variedad y, si alguna
+        no ha completado su requerimiento mínimo, escala el nivel de riesgo
+        y añade una alerta específica.
+
+        La lógica de escalado es:
+        - Variedad con < 50% de horas_frio_min: +2 niveles (SIN_RIESGO→MODERADA,
+          DEBIL→FUERTE, etc.)
+        - Variedad con 50-99% de horas_frio_min: +1 nivel
+        - Variedad con >= horas_frio_min: sin cambio, alerta informativa si ya
+          superó el máximo (posible invernalización excesiva)
+
+        Solo se escala hasta FUERTE como máximo. El escalado más severo encontrado
+        entre todas las variedades es el que prevalece.
+
+        :param variedades: Nombres de variedades a consultar
+        :type variedades: list[str]
+        :param nivel_riesgo_actual: Nivel de riesgo calculado antes de este condicionante
+        :type nivel_riesgo_actual: NivelHelada
+        :param alertas: Lista de alertas acumuladas hasta ahora (se añaden in-place)
+        :type alertas: list
+        :return: Tupla (nivel_riesgo_final: NivelHelada, alertas: list)
+        :rtype: tuple
+        """
+        client = cls._get_cliente()
+
+        # Escala ordinal para poder hacer aritmética de niveles
+        escala = [
+            NivelHelada.SIN_RIESGO,
+            NivelHelada.DEBIL,
+            NivelHelada.MODERADA,
+            NivelHelada.FUERTE
+        ]
+
+        max_escalado = 0  # Máximo número de niveles a subir por horas de frío
+
+        for nombre_variedad in variedades:
+            datos_hf = client.get_horas_frio_variedad(
+                nombre_variedad = nombre_variedad
+            )
+
+            if not datos_hf:
+                alertas.append(AlertaDTO(
+                    mensaje = f"No se pudieron obtener las horas de frío de '{nombre_variedad}'. ",
+                    recomendacion = "Verificar disponibilidad de datos en data-service.",
+                    nivel = TipoAlerta.INFORMATIVA
+                ))
+                continue
+
+            hf_min = datos_hf.get('horas_frio_min')
+            hf_max = datos_hf.get('horas_frio_max')
+            hf_actuales = datos_hf.get('horas_frio_actuales')
+
+            if hf_min is None or hf_actuales is None:
+                alertas.append(AlertaDTO(
+                    mensaje = f"Datos de horas de frío incompletos para '{nombre_variedad}'.",
+                    recomendacion = "Revisar configuración de umbrales en data-service.",
+                    nivel = TipoAlerta.INFORMATIVA
+                ))
+                continue
+
+            porcentaje_completado = (hf_actuales / hf_min) * 100 if hf_min > 0 else 100
+
+            if porcentaje_completado < 50:
+                # Variedad muy lejos de su requerimiento: muy vulnerable
+                escalado = 2
+                alertas.append(AlertaDTO(
+                    mensaje = (
+                        f"La variedad '{nombre_variedad}' solo ha acumulado {hf_actuales:.1f} "
+                        f"de {hf_min} horas de frío requeridas ({porcentaje_completado:.0f}%). "
+                        "La planta no ha completado su vernalización y es extremadamente "
+                        "sensible a heladas."
+                    ),
+                    recomendacion = (
+                        "Aplicar protección activa: cobertura térmica y/o riego antihelada. "
+                        "La falta de vernalización aumenta significativamente el daño potencial."
+                    ),
+                    nivel = TipoAlerta.CRITICA
+                ))
+
+            elif porcentaje_completado < 100:
+                # Variedad en proceso de vernalización: sensibilidad elevada
+                escalado = 1
+                alertas.append(AlertaDTO(
+                    mensaje = (
+                        f"La variedad '{nombre_variedad}' ha acumulado {hf_actuales:.1f} "
+                        f"de {hf_min} horas de frío requeridas ({porcentaje_completado:.0f}%). "
+                        "La vernalización está incompleta, lo que incrementa su vulnerabilidad."
+                    ),
+                    recomendacion = (
+                        "Mantener vigilancia sobre las temperaturas nocturnas y preparar "
+                        "medidas de protección preventivas."
+                    ),
+                    nivel = TipoAlerta.PREVENTIVA
+                ))
+
+            else:
+                # Vernalización completa
+                escalado = 0
+                mensaje_hf = (
+                    f"La variedad '{nombre_variedad}' ha completado su requerimiento "
+                    f"de horas de frío ({hf_actuales:.1f} / {hf_min})."
+                )
+                # Advertencia adicional si se ha superado el máximo
+                if hf_max is not None and hf_actuales > hf_max:
+                    mensaje_hf += (
+                        f" AVISO: se han superado las {hf_max} horas máximas recomendadas "
+                        f"({hf_actuales:.1f} acumuladas). Posible vernalización excesiva."
+                    )
+                    alertas.append(AlertaDTO(
+                        mensaje = mensaje_hf,
+                        recomendacion = "Consultar con el técnico agronómico sobre el impacto de la vernalización excesiva.",
+                        nivel = TipoAlerta.PREVENTIVA
+                    ))
+                else:
+                    alertas.append(AlertaDTO(
+                        mensaje = mensaje_hf,
+                        recomendacion = "No se requieren medidas adicionales por horas de frío.",
+                        nivel = TipoAlerta.INFORMATIVA
+                    ))
+
+            max_escalado = max(max_escalado, escalado)
+
+        # Aplicamos el escalado más severo encontrado
+        if max_escalado > 0:
+            indice_actual = escala.index(nivel_riesgo_actual) if nivel_riesgo_actual in escala else 0
+            indice_final = min(indice_actual + max_escalado, len(escala) - 1)
+            nivel_final = escala[indice_final]
+
+            if nivel_final != nivel_riesgo_actual:
+                alertas.append(AlertaDTO(
+                    mensaje = (
+                        f"El nivel de riesgo ha sido escalado de {nivel_riesgo_actual.value} "
+                        f"a {nivel_final.value} por el condicionante de horas de frío insuficientes."
+                    ),
+                    recomendacion = "Revisar el estado fenológico de las variedades afectadas.",
+                    nivel = TipoAlerta.ALTA
+                ))
+        else:
+            nivel_final = nivel_riesgo_actual
+
+        return nivel_final, alertas
+
     @staticmethod
     def _build_futuras_predicciones(
         datos_futuros,
         datos_localidades,
         incluir_evaluacion_localidad : bool,
         localidades : Optional[list[str]],
-        incluir_evaulacion_cultivo : bool,
-        cultivos : Optional[list[str]]
+        incluir_evaulacion_variedades : bool,
+        variedades : Optional[list[str]]
     ) -> RiesgoHeladaFuturaDTO:
         """
         Genera el DTO de predicciones futuras de heladas sobre los datos recopilados
@@ -903,10 +1137,10 @@ class HeladaPredictionService():
         :type incluir_evaluacion_localidad: bool
         :param localidades: Lista de localidades a evaluar
         :type localidades: Optional[list[str]]
-        :param incluir_evaulacion_cultivo: Condicionante para determinar la evaluación de riesgo de heladas sobre cultivos
-        :type incluir_evaulacion_cultivo: bool
-        :param cultivos: Lista de cultivos a evaluar
-        :type cultivos: Optional[list[str]]
+        :param incluir_evaulacion_variedades: Condicionante para determinar la evaluación de riesgo de heladas sobre variedades de cultivo
+        :type incluir_evaulacion_variedades: bool
+        :param variedades: Lista de variedades de cultivo a evaluar
+        :type variedades: Optional[list[str]]
         :return: DTO resultante con los datos recopilados importantes a enviar
         :rtype: RiesgoHeladaFuturaDTO
         """
@@ -914,9 +1148,10 @@ class HeladaPredictionService():
         nivel_riesgo = None
         comentarios = "Predicciones futuras basadas en datos proporcionados por AEMET."
         alertas = []
-        predicciones_cultivo = None
+        predicciones_variedad = None
         predicciones_localidad = None
 
+        print(f"Datos futuros : {datos_futuros}")
         #1. Obtengo el tipo de prediccion 
         tipo_prediccion = datos_futuros['type_prediction']
 
@@ -939,17 +1174,20 @@ class HeladaPredictionService():
         )
 
         #3. Construyo el DTO de Cota de nieve
-        print(f"Datos aemet : {datos_futuros}")
         cota = datos_futuros['datos'].get('cotas_nieve')
         cota_nieve = None
         if cota:
+            # 1er respaldo
             cota_minima_match = re.search(r'^\s*(\d+)', cota)
             cota_maxima_match = re.search(r'^\s*(\d+)+\D+(\d+)', cota)
-            hay_descenso = re.search(r'descenso', cota)
 
+            if (cota_maxima_match and cota_minima_match) is None:
+                cota_match = re.search(r'(\d+)-(\d+)', cota) # 2do respaldo
+            
+            hay_descenso = re.search(r'descenso', cota)
             cota_nieve = CotaNieveDTO(
-                cota_minima = int(cota_minima_match.group(1)),
-                cota_maxima= int(cota_maxima_match.group(2)),
+                cota_minima = int(cota_minima_match.group(1)) if cota_minima_match else int(cota_match.group(1)),
+                cota_maxima= int(cota_maxima_match.group(2)) if cota_maxima_match else int(cota_match.group(2)),
                 hay_descenso = True if hay_descenso else False,
                 texto_original = cota
             )
@@ -978,27 +1216,27 @@ class HeladaPredictionService():
             alertas.append(alerta)
             comentarios += f" Se evaluaron {predicciones_localidad.total_localidades_evaluadas} localidades."
 
-        elif incluir_evaulacion_cultivo:
+        elif incluir_evaulacion_variedades:
             # Entre todas las localidades con temperatura que arroja la 
             # predicción de dataservice, obtenemos la mínima
-            # No tenemos los cultivos asociados a localidades
+            # No tenemos las variedades asociados a localidades
             temp_min_futura = HeladaPredictionService._temperatura_minima_futuros_calculada(
                 temperaturas_localidades = datos_futuros['datos'].get('temperatura_localidades')
             )
 
             mes = datetime.strptime(datos_futuros['datos'].get('fecha_elaboracion'), "%Y-%m-%dT%H:%M:%S").month
-            predicciones_cultivo = HeladaPredictionService._evaular_riesgo_cultivos(
+            predicciones_variedad = HeladaPredictionService._evaluar_riesgo_variedades(
                 temperatura_minima = temp_min_futura,
                 mes = mes,
-                cultivos = cultivos
+                variedades = variedades
             )
 
             nivel_riesgo, alerta = HeladaPredictionService._nivel_riesgo_predictivo(
-                predicciones_cultivo
+                predicciones_variedad
             )
 
             alertas.append(alerta)
-            comentarios += f" Se evaluaron {predicciones_cultivo.total_cultivos_evaluados} cultivos."
+            comentarios += f" Se evaluaron {predicciones_variedad.total_variedades_evaluados} variedades de cultivo."
 
         #5. Creo el DTO de contexto de cálculo
         contexto = ContextoCalculoDTO(
@@ -1015,7 +1253,7 @@ class HeladaPredictionService():
             alertas = alertas,
             contexto = contexto,
             tipo_prediccion = tipo_prediccion,
-            evaluaciones_cultivo = predicciones_cultivo,
+            evaluaciones_variedades = predicciones_variedad,
             riesgos_heladas_blancas = [],
             riesgos_heladas_negras = [],
             precision = TipoPrecision.MEDIA,
@@ -1023,16 +1261,24 @@ class HeladaPredictionService():
             evaluacion_localidades = predicciones_localidad
         )
     
-    @staticmethod
-    def listar_cultivos_disponibles() -> list[str]:
+    @classmethod
+    def listar_variedades_disponibles(
+        cls
+    ) -> list[str]:
         """
-        Obtiene y devuelve la lista de cultivos disponibles
+        Obtiene y devuelve la lista de variedades disponibles
         
-        :return: Lista de cultivos disponibles
+        :return: Lista de variedades disponibles
         :rtype: list[str]
         """
-        return listar_cultivo()
-    
+        client = cls._get_cliente()
+        datos = client.get_variedades()
+
+        if not datos:
+            return []
+
+        return [v.get('nombre', '').strip().lower() for v in datos if v.get('nombre')] 
+       
     @classmethod
     def listar_localidades_disponibles(cls) -> list[str]:
         """
@@ -1056,8 +1302,8 @@ class HeladaPredictionService():
         cls,
         province_code : Optional[str],
         estacion_code : Optional[str],
-        incluir_evaluacion_cultivos : bool,
-        cultivos : Optional[list[str]],
+        incluir_evaluacion_variedades : bool,
+        variedades : Optional[list[str]],
         type : str
     ):
         """
@@ -1067,10 +1313,10 @@ class HeladaPredictionService():
         :type province_code: Optional[str]
         :param estacion_code: Codigo de la estacion solicitada
         :type estacion_code: Optional[str]
-        :param incluir_evaluacion_cultivo: Decide si se evalua el riesgo en cultivos
-        :type incluir_evaluacion_cultivo: bool
-        :param cultivos: Lista de cultivos a evaluar
-        :type cultivos: Optional[list[str]]
+        :param incluir_evaluacion_variedades: Decide si se evalua el riesgo en variedades de cultivo
+        :type incluir_evaluacion_variedades: bool
+        :param variedades: Lista de variedades de cultivo a evaluar
+        :type variedades: Optional[list[str]]
         :param type: Tipo de dato a solicitar (Hora, Dia, Semana)
         :type type: str
         """
@@ -1095,8 +1341,8 @@ class HeladaPredictionService():
                 data = datos,
                 fecha_inicio = fecha_inicio,
                 fecha_fin = hoy,
-                incluir_evaluacion_cultivo = incluir_evaluacion_cultivos,
-                cultivos = cultivos
+                incluir_evaluacion_variedades = incluir_evaluacion_variedades,
+                variedades = variedades
             )
 
         return predicciones        
@@ -1107,11 +1353,10 @@ class HeladaPredictionService():
         province_code : Optional[str],
         ccaa_code : Optional[str],
         zona : str,
-        prediccion : str,
         incluir_eval_localidad : bool,
-        incluir_eval_cultivo : bool,
+        incluir_eval_variedades : bool,
         localidades : Optional[list[str]],
-        cultivos : Optional[list[str]]
+        variedades : Optional[list[str]]
     ):
         """
         Obtiene predicciones de heladas basadas en datos futuros 
@@ -1126,12 +1371,12 @@ class HeladaPredictionService():
         :type prediccion: str
         :param incluir_eval_localidad: Indicar si se quiere evaluar el riesgo de heladas en localidades
         :type incluir_eval_localidad: bool
-        :param incluir_eval_cultivo: Indicar si se quiere evaluar el riesgo de heladas sobre cultivos
-        :type incluir_eval_cultivo: bool
+        :param incluir_eval_variedades: Indicar si se quiere evaluar el riesgo de heladas sobre variedades de cultivos
+        :type incluir_eval_variedades: bool
         :param localidades: Localidades a analizar
         :type localidades: Optional[list[str]]
-        :param cultivos: Cultivos a analizar
-        :type cultivos: Optional[list[str]]
+        :param variedades: Variedades de cultivos a analizar
+        :type variedades: Optional[list[str]]
         """
 
         client = cls._get_cliente()
@@ -1139,7 +1384,7 @@ class HeladaPredictionService():
             province_code = province_code,
             ccaa_code = ccaa_code,
             zona = zona,
-            prediccion = prediccion
+            prediccion = "tomorrow"
         )
 
         datos_localidades = client.get_localidades_data()
@@ -1154,8 +1399,8 @@ class HeladaPredictionService():
                 datos_localidades = datos_localidades,
                 incluir_evaluacion_localidad = incluir_eval_localidad,
                 localidades = localidades if localidades else None,
-                incluir_evaulacion_cultivo = incluir_eval_cultivo,
-                cultivos = cultivos if cultivos else None
+                incluir_evaulacion_variedades = incluir_eval_variedades,
+                variedades = variedades if variedades else None
             )
         
         return predicciones

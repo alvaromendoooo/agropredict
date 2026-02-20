@@ -33,7 +33,7 @@ def prediccion_heladas_observadas(
         province_code = request.args.get('province')
         estacion_code = request.args.get('estacion')
         incluir_evaluacion = request.args.get('evaluacion', 'false').lower()
-        cultivos = request.args.get('cultivos')
+        variedades = request.args.get('variedades')
 
         # Comprobación de parámetros recibidos
         if not tipo:
@@ -58,15 +58,15 @@ def prediccion_heladas_observadas(
                 error = 'Invalid parameters'
             )
 
-        incluir_cultivos = incluir_evaluacion in ['true', '1', 'yes', 'si']
-        cultivo_lista = None
-        if cultivos:
-            cultivo_lista = [c.strip().lower() for c in cultivos.split(',')]
-            cultivos_disponibles = HeladaPredictionService.listar_cultivos_disponibles()
-            for c in cultivo_lista:
-                if c not in cultivos_disponibles:
+        incluir_variedades = incluir_evaluacion in ['true', '1', 'yes', 'si']
+        variedades_lista = None
+        if variedades:
+            variedades_lista = [v.strip().lower() for v in variedades.split(',')]
+            variedades_disponibles = HeladaPredictionService.listar_variedades_disponibles()
+            for v in variedades_lista:
+                if v not in variedades_disponibles:
                     raise APIException(
-                        message = f"Cultivos no reconocidos: {', '.join(c)}",
+                        message = f"Variedad de cultivo no reconocidos: {', '.join(v)}",
                         status = 400,
                         error = 'Invalid corp params'
                     )
@@ -76,8 +76,8 @@ def prediccion_heladas_observadas(
             province_code = province_code,
             estacion_code = estacion_code,
             type = tipo.lower(),
-            incluir_evaluacion_cultivos = incluir_cultivos,
-            cultivos = cultivo_lista
+            incluir_evaluacion_variedades = incluir_variedades,
+            variedades = variedades_lista
         )
 
         return dataclass_to_json(datos_prediccion), 200
@@ -106,47 +106,46 @@ def prediccion_heladas_observadas(
             'error': 'Internal server error'
         }), 500
 
-@helada_bp.route('/heladas/cultivos')
+@helada_bp.route('/heladas/variedades')
 @log('../logs/fichero_salida.json')
-def listar_cultivos():
+def listar_variedades():
     """
-    Endpoint encargado de mostrar al cliente los cultivos disponibles
+    Endpoint encargado de mostrar al cliente las variedades de cultivo disponibles
     """
     try:
-        cultivos_disponibles = HeladaPredictionService.listar_cultivos_disponibles()
+        variedades_disponibles = HeladaPredictionService.listar_variedades_disponibles()
 
         return jsonify({
-            'total' : len(cultivos_disponibles),
-            'cultivos' : cultivos_disponibles,
-            'mensaje' : 'Use este nombre en el parametro "cultivos" sobre los demas endpoints para filtrar la evaluacion de riesgo de helada en cultivos especificos'
+            'total' : len(variedades_disponibles),
+            'cultivos' : variedades_disponibles,
+            'mensaje' : 'Use este nombre en el parametro "variedades" sobre los demas endpoints para filtrar la evaluacion de riesgo de helada en variedades especificas'
         }), 200
     
     except Exception as e:
-        logger.error(f'Error listando los cultivos disponibles: {e}')
+        logger.error(f'Error listando las variedades disponibles: {e}')
         return jsonify({
-            'message' : 'Error al obtener el listado de cultivos disponibles',
+            'message' : 'Error al obtener el listado de variedades disponibles',
             'status' : 500,
             'error' : str(e)
         }), 500
 
 
-@helada_bp.route('/heladas/futuras/<string:zona>/<string:prediccion>', methods = ['GET'])
+@helada_bp.route('/heladas/futuras/<string:zona>', methods = ['GET'])
 @log('../logs/fichero_salida.json')
 def prediccion_heladas_futuras(
-    zona : str,
-    prediccion : str
+    zona : str
 ):
     try:
         # Parametros de query
         provinciaId = request.args.get('provinciaId')
         ccaaId = request.args.get('ccaaId')
-        incluir_evaluacion_cultivo = request.args.get('evaluacion_cul', 'false').lower()
+        incluir_evaluacion_variedad = request.args.get('evaluacion_var', 'false').lower()
         incluir_evaluacion_localidad = request.args.get('evaluacion_loc', 'false').lower()
-        cultivos = request.args.get('cultivos')
+        variedades = request.args.get('variedades')
         localidades = request.args.get('localidades')
 
 
-        if not zona and prediccion:
+        if not zona:
             raise APIException(
                 message = 'Todos los parámetros deben estar definidos',
                 status = 400,
@@ -160,15 +159,15 @@ def prediccion_heladas_futuras(
                 error = 'Invalid parameters'
             )
 
-        incluir_cultivos = incluir_evaluacion_cultivo in ['true', '1', 'yes', 'si']
-        cultivo_lista = None
-        if cultivos:
-            cultivo_lista = [c.strip().lower() for c in cultivos.split(',')]
-            cultivos_disponibles = HeladaPredictionService.listar_cultivos_disponibles()
-            for c in cultivo_lista:
-                if c not in cultivos_disponibles:
+        incluir_variedades = incluir_evaluacion_variedad in ['true', '1', 'yes', 'si']
+        variedades_lista = None
+        if variedades:
+            variedades_lista = [v.strip().lower() for v in variedades.split(',')]
+            variedades_disponibles = HeladaPredictionService.listar_variedades_disponibles()
+            for v in variedades_lista:
+                if v not in variedades_disponibles:
                     raise APIException(
-                        message = f"Cultivos no reconocidos: {', '.join(c)}",
+                        message = f"Variedades de cultivo no reconocidos: {', '.join(v)}",
                         status = 400,
                         error = 'Invalid corp params'
                     )
@@ -190,11 +189,10 @@ def prediccion_heladas_futuras(
             province_code = provinciaId,
             ccaa_code = ccaaId,
             zona = zona,
-            prediccion = prediccion,
             incluir_eval_localidad = incluir_localidades,
-            incluir_eval_cultivo = incluir_cultivos,
+            incluir_eval_variedades = incluir_variedades,
             localidades = localidad_lista,
-            cultivos = cultivo_lista
+            variedades = variedades_lista
         )
         
         return dataclass_to_json(datos), 200

@@ -15,6 +15,7 @@ class DataServiceClient(BaseClient):
         super().__init__(app, service_name = "data_service")
         self.base_historical_url = app.config.get('DATA_SERVICE_HISTORIC_BASE_URL')
         self.base_forecast_url = app.config.get('DATA_SERVICE_FORECAST_BASE_URL')
+        self.base_crop_url = app.config.get('DATA_SERVICE_CROP_BASE_URL')
 
     @circuit(cls = CircuitBreakerPersonalizado)
     def get_historic_data_day(
@@ -25,7 +26,6 @@ class DataServiceClient(BaseClient):
         start_date : date,
         end_date : date
     ): 
-        print(f"Provincia: {province_code}")
         try:
             
             if province_code:
@@ -159,3 +159,114 @@ class DataServiceClient(BaseClient):
         except Exception as e:
             logger.errro(f"Algo fallo en la comunicación con el servicio : {e}")
             return None
+        
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_variedades(
+        self, 
+        cultivo : Optional[str] = None
+    ):
+        """
+        Obtiene las variedades disponibles sobre un cultivo o en general de data-service
+        Si se indica el cultivo, filtrará por él
+        
+        :param cultivo: Nombre del cultivo a filtrar (opcional)
+        :type cultivo: Optional[str]
+        :return: Lista de variedades o None si falla
+        """
+        try:
+            url = f"{self.base_crop_url}/variedades"
+
+            if cultivo:
+                print("entro")
+                url += f"?cultivo={cultivo}"
+            
+            response = self._make_request(
+                method = 'GET',
+                url = url
+            )
+
+            if response.status_code == 404:
+                logger.warning(f"No se han encontrado variedades (cultivo = {cultivo})")
+                return None
+            if response.status_code >= 500:
+                logger.warning("Error del servicio al que te comunicas al obtener variedades")
+                return None
+            
+            response.raise_for_status()
+            return response.json()
+        
+        except requests.RequestException as e:
+            logger.error(f"Fallo obteniendo variedades de data-service : {e}")
+            return None
+        
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_umbrales_variedad(
+        self, 
+        nombre_variedad : str
+    ):
+        """
+        Obtiene los umbrales de las etapas fenologicas que componen la variedad seleccionada
+        
+        :param nombre_variedad: Nombre de la variedad que se quiere consultar sus umbrales
+        :type nombre_variedad: str
+        :return: Lista de umbrales o None si no existe o falla
+        """
+        try:
+            url = f"{self.base_crop_url}/variedades/{nombre_variedad}/umbrales"
+
+            response = self._make_request(
+                method = 'GET',
+                url = url
+            )
+
+            if response.status_code == 404:
+                logger.warning(f"No se han recuperado los valores de umbrales para la variedad {nombre_variedad}")
+                return None
+            if response.status_code >= 500:
+                logger.warning(f"Error del servicio al que te comunicas al obtener umbrales de variedad {nombre_variedad}")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            logger.error(f"Fallo obteniendo umbrales sobre variedad {nombre_variedad} en data-service : {e}")
+            return None
+
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_horas_frio_variedad(
+        self, 
+        nombre_variedad : str
+    ):
+        """
+        Obtiene las horas frio actuales acumuladas sobre la variedad seleccionada y sus
+        rangos máximos y mínimos
+
+        :param nombre_variedad: Nombre de la variedad seleccionada
+        :type nombre_variedad: str
+        :return: Datos horas_frio almacenados sobre la variedad seleccionada o None en caso de que fallo o no exista
+        """
+        try:
+            url = f"{self.base_crop_url}/variedades/{nombre_variedad}/horas_frio"
+
+            response = self._make_request(
+                method = 'GET',
+                url = url
+            )
+
+            if response.status_code == 404:
+                logger.warning(f"No se han recuperado los valores de frio almacenados para la variedad {nombre_variedad}")
+                return None
+            if response.status_code >= 500:
+                logger.warning(f"Error del servicio al que te comunicas al obtener las horas_frio de la variedad {nombre_variedad}")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            print(f"Fallo obteniendo horas_frio sobre la variedad {nombre_variedad} : {e}")
+            return None
+

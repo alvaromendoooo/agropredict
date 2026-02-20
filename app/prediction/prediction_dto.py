@@ -54,7 +54,7 @@ class UmbralesCultivoDTO:
 
 @dataclass
 class AnalisisCultivoDTO:
-    cultivo : str
+    variedad : str
     nombre_cientifico : str
     etapa_fenologica : str
     temperatura_evaluada : str
@@ -83,12 +83,12 @@ class AnalisisLocalidadDTO:
 
 @dataclass
 class ResumenCultivoDTO:
-    total_cultivos_evaluados : int
-    cultivos_en_riesgo_critico : int
-    cultivos_en_riesgo_alto : int
-    cultivos_en_riesgo_moderado : int
-    cultivos_en_riesgo_debil : int
-    cultivos_sin_riesgo : int
+    total_variedades_evaluados : int
+    variedades_en_riesgo_critico : int
+    variedades_en_riesgo_alto : int
+    variedades_en_riesgo_moderado : int
+    variedades_en_riesgo_debil : int
+    variedades_sin_riesgo : int
     evaluaciones : list[AnalisisCultivoDTO]
 
 @dataclass
@@ -136,7 +136,7 @@ class RiesgoHeladaBaseDTO:
     alertas : list[AlertaDTO]
     contexto : ContextoCalculoDTO
     tipo_prediccion : TipoPrediccion
-    evaluaciones_cultivo : Optional[ResumenCultivoDTO]
+    evaluaciones_variedades : Optional[ResumenCultivoDTO]
     riesgos_heladas_blancas : list[RiesgoHeladaTipoDTO]
     riesgos_heladas_negras : list[RiesgoHeladaTipoDTO]
 
