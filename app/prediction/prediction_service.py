@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from math import erf, sqrt
 from flask import current_app
 from typing import Dict, Any
+from ..threading.thread_task import generar_informe_background
 import re
 
 class HeladaPredictionService():
@@ -353,7 +354,7 @@ class HeladaPredictionService():
         :return Tupla(nivel_riesgo: str, umbral_activo: dict) | None
         :rtype: tuple
         """
-
+        print(f"Temperatura {temperatura}")
         umbrales_ordenados = sorted(
             umbrales,
             key = lambda u : u.get('etapa_fenologica', {}).get('orden', 999)
@@ -515,7 +516,7 @@ class HeladaPredictionService():
         nivel_riesgo = None
 
         datos_localidades_analizar = []
-
+        print(f"Localidades disponibles: {localidades_disponibles}")
         datos_localidades_analizar = [
             localidad
             for localidad in localidades_disponibles
@@ -1300,6 +1301,7 @@ class HeladaPredictionService():
     @classmethod
     def obtener_predicciones_helada_observadas(
         cls,
+        app,
         province_code : Optional[str],
         estacion_code : Optional[str],
         incluir_evaluacion_variedades : bool,
@@ -1344,18 +1346,21 @@ class HeladaPredictionService():
                 incluir_evaluacion_variedades = incluir_evaluacion_variedades,
                 variedades = variedades
             )
+        
+        generar_informe_background(app = app)
 
         return predicciones        
     
     @classmethod
     def obtener_predicciones_helada_futuras(
         cls,
+        app,
         province_code : Optional[str],
         ccaa_code : Optional[str],
         zona : str,
         incluir_eval_localidad : bool,
         incluir_eval_variedades : bool,
-        localidades : Optional[list[str]],
+        localidades_normalizadas : Optional[list[str]],
         variedades : Optional[list[str]]
     ):
         """
@@ -1373,8 +1378,8 @@ class HeladaPredictionService():
         :type incluir_eval_localidad: bool
         :param incluir_eval_variedades: Indicar si se quiere evaluar el riesgo de heladas sobre variedades de cultivos
         :type incluir_eval_variedades: bool
-        :param localidades: Localidades a analizar
-        :type localidades: Optional[list[str]]
+        :param localidades_normalizadas: Localidades a analizar configuradas con un buen formato
+        :type localidades_normalizadas: Optional[list[str]]
         :param variedades: Variedades de cultivos a analizar
         :type variedades: Optional[list[str]]
         """
@@ -1387,20 +1392,25 @@ class HeladaPredictionService():
             prediccion = "tomorrow"
         )
 
-        datos_localidades = client.get_localidades_data()
+        datos_localidad = None # Almacena datos de localidades de data-service, servirán para generar predicciones basadas en cotas de nieve
+
+        if incluir_eval_localidad:
+            datos_localidad = client.get_localidades_data()
 
         if not datos_futuros:
             raise ValueError("No se pudieron obtener datos futuros sobre dataservice")
-        if not datos_localidades:
+        elif incluir_eval_localidad and not datos_localidad:
             raise ValueError("No se pudieron obtener datos de localidades sobre dataservice")
         else:
             predicciones = HeladaPredictionService._build_futuras_predicciones(
                 datos_futuros = datos_futuros,
-                datos_localidades = datos_localidades,
-                incluir_evaluacion_localidad = incluir_eval_localidad,
-                localidades = localidades if localidades else None,
-                incluir_evaulacion_variedades = incluir_eval_variedades,
+                datos_localidades = datos_localidad if datos_localidad else None,
+                incluir_evaluacion_localidad = True if incluir_eval_localidad else False,
+                localidades = localidades_normalizadas if localidades_normalizadas else None,
+                incluir_evaulacion_variedades = True if incluir_eval_variedades else False,
                 variedades = variedades if variedades else None
             )
         
+        generar_informe_background(app = app)
+
         return predicciones

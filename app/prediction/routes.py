@@ -3,12 +3,9 @@ from . import helada_bp
 from ..globals.log_decorator import log
 from ..globals.ApiExceptions import APIException
 from ..globals.dto2dict import dataclass_to_json
-from .prediction_dto import TipoDato
-from datetime import date
-from typing import Optional
 from flask import jsonify
 import logging
-from flask import request
+from flask import request, current_app
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +70,7 @@ def prediccion_heladas_observadas(
 
         # Obtengo la prediccion
         datos_prediccion = HeladaPredictionService.obtener_predicciones_helada_observadas(
+            current_app._get_current_object(),
             province_code = province_code,
             estacion_code = estacion_code,
             type = tipo.lower(),
@@ -186,12 +184,13 @@ def prediccion_heladas_futuras(
                     )
 
         datos = HeladaPredictionService.obtener_predicciones_helada_futuras(
+            current_app._get_current_object(),
             province_code = provinciaId,
             ccaa_code = ccaaId,
             zona = zona,
             incluir_eval_localidad = incluir_localidades,
             incluir_eval_variedades = incluir_variedades,
-            localidades = localidad_lista,
+            localidades_normalizadas = localidad_lista,
             variedades = variedades_lista
         )
         
