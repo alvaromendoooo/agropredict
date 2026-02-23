@@ -6,6 +6,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.platypus import PageBreak
 from reportlab.pdfgen import canvas
 from datetime import date
+from pathlib import Path
 import os
 
 ruta_directorio_actual = os.getcwd()
@@ -77,11 +78,13 @@ def encabezado_pie(
     canvas_obj.restoreState()
 
 def crear_informe(predicciones: list[dict]):
-   
+    directorio = Path(__file__).resolve().parent
+    directorio.mkdir(parents=True, exist_ok=True)
+    ruta_pdf = directorio / NOMBRE_ARCHIVO
+
     doc = SimpleDocTemplate(
-        NOMBRE_ARCHIVO,
+        str(ruta_pdf),
         pagesize = letter,
-        # Márgenes: top grande para dejar sitio al encabezado
         topMargin = 1 * inch,
         bottomMargin = 0.9 * inch,
         leftMargin = 1 * inch,
