@@ -6,8 +6,8 @@ from datetime import date, timedelta
 from math import erf, sqrt
 from flask import current_app
 from typing import Dict, Any
-from ..threading.thread_task import generar_informe_background
 import re
+import time
 
 class HeladaPredictionService():
     _cliente = None
@@ -254,7 +254,7 @@ class HeladaPredictionService():
                 "alertas" : [
                     AlertaDTO(
                         mensaje = f"Temperaturas minimas de {temp_min}C detectado. Riesgo moderado de heladas",
-                        recomendacion = "Revisa sistemas de protección, previniendo a toda costa los brotes nuevos o jóvenes",
+                        recomendacion = "Revisa sistemas de protección, previniendo a toda costa los brotes nuevos o jovenes",
                         nivel = TipoAlerta.PREVENTIVA.value
                     )
                 ]
@@ -354,7 +354,6 @@ class HeladaPredictionService():
         :return Tupla(nivel_riesgo: str, umbral_activo: dict) | None
         :rtype: tuple
         """
-        print(f"Temperatura {temperatura}")
         umbrales_ordenados = sorted(
             umbrales,
             key = lambda u : u.get('etapa_fenologica', {}).get('orden', 999)
@@ -516,7 +515,6 @@ class HeladaPredictionService():
         nivel_riesgo = None
 
         datos_localidades_analizar = []
-        print(f"Localidades disponibles: {localidades_disponibles}")
         datos_localidades_analizar = [
             localidad
             for localidad in localidades_disponibles
@@ -548,7 +546,6 @@ class HeladaPredictionService():
             if not localidades_pred:    
                 continue
                 
-            print(f"Datos localidades a analizar : {datos}")
             temperatura_minima = localidades_pred['temperatura_minima']
             temperatura_maxima = localidades_pred['temperatura_maxima']
             altitud = localidad['altitud']
@@ -1152,7 +1149,6 @@ class HeladaPredictionService():
         predicciones_variedad = None
         predicciones_localidad = None
 
-        print(f"Datos futuros : {datos_futuros}")
         #1. Obtengo el tipo de prediccion 
         tipo_prediccion = datos_futuros['type_prediction']
 
@@ -1301,7 +1297,6 @@ class HeladaPredictionService():
     @classmethod
     def obtener_predicciones_helada_observadas(
         cls,
-        app,
         province_code : Optional[str],
         estacion_code : Optional[str],
         incluir_evaluacion_variedades : bool,
@@ -1346,15 +1341,12 @@ class HeladaPredictionService():
                 incluir_evaluacion_variedades = incluir_evaluacion_variedades,
                 variedades = variedades
             )
-        
-        generar_informe_background(app = app)
 
         return predicciones        
     
     @classmethod
     def obtener_predicciones_helada_futuras(
         cls,
-        app,
         province_code : Optional[str],
         ccaa_code : Optional[str],
         zona : str,
@@ -1391,6 +1383,15 @@ class HeladaPredictionService():
             zona = zona,
             prediccion = "tomorrow"
         )
+        # Comprobar el estado de la carga de datos antes de obtener los datos de data-service
+        if datos_futuros.get('status') == "PENDING":
+            time.sleep(5) # Después de ese tiempo ya deberían estar cargados los datos en la base de datos
+            datos_futuros = client.get_future_data(
+                province_code = province_code,
+                ccaa_code = ccaa_code,
+                zona = zona,
+                prediccion = "tomorrow"
+            )
 
         datos_localidad = None # Almacena datos de localidades de data-service, servirán para generar predicciones basadas en cotas de nieve
 
@@ -1410,7 +1411,5 @@ class HeladaPredictionService():
                 incluir_evaulacion_variedades = True if incluir_eval_variedades else False,
                 variedades = variedades if variedades else None
             )
-        
-        generar_informe_background(app = app)
 
         return predicciones

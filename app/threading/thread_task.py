@@ -31,7 +31,8 @@ def _background_pipeline(
                 break
 
 def generar_informe_background(
-    app
+    app,
+    datos_prediccion : dict
 ):
     """
     Lanza en background la generación del informe y su firma digital.
@@ -49,7 +50,7 @@ def generar_informe_background(
     ]
 
     pasos = [
-        (InformeService.crear_informe, (datos,), {}),
+        (InformeService.crear_informe, (datos_prediccion,), {}),
         (FirmaService.generar_firma, (),{}),
     ]
 

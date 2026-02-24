@@ -5,6 +5,8 @@ from ..globals.ApiExceptions import APIException
 from ..globals.dto2dict import dataclass_to_json
 from flask import jsonify
 import logging
+import json
+from ..threading.thread_task import generar_informe_background
 from flask import request, current_app
 
 logger = logging.getLogger(__name__)
@@ -70,7 +72,6 @@ def prediccion_heladas_observadas(
 
         # Obtengo la prediccion
         datos_prediccion = HeladaPredictionService.obtener_predicciones_helada_observadas(
-            current_app._get_current_object(),
             province_code = province_code,
             estacion_code = estacion_code,
             type = tipo.lower(),
@@ -78,7 +79,10 @@ def prediccion_heladas_observadas(
             variedades = variedades_lista
         )
 
-        return dataclass_to_json(datos_prediccion), 200
+        datos_json = dataclass_to_json(datos_prediccion)
+        generar_informe_background(current_app._get_current_object(), datos_prediccion = datos_json)
+        
+        return datos_json, 200
     
     except APIException as e:
         logger.error(f'API Exception en prediccion_heladas_observadas: {e}')
@@ -184,7 +188,6 @@ def prediccion_heladas_futuras(
                     )
 
         datos = HeladaPredictionService.obtener_predicciones_helada_futuras(
-            current_app._get_current_object(),
             province_code = provinciaId,
             ccaa_code = ccaaId,
             zona = zona,
@@ -194,7 +197,11 @@ def prediccion_heladas_futuras(
             variedades = variedades_lista
         )
         
-        return dataclass_to_json(datos), 200
+        datos_response = dataclass_to_json(datos)
+        datos_dict = datos_response.get_json()
+        generar_informe_background(current_app._get_current_object(), datos_prediccion = datos_dict)
+
+        return datos_response, 200
 
     except APIException as e:
         logger.error(f'API Exception en prediccion_heladas_futuras: {e}')

@@ -5,7 +5,7 @@ from reportlab.lib.units import inch, cm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 from reportlab.platypus import PageBreak
 from reportlab.pdfgen import canvas
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 import os
 
@@ -82,7 +82,12 @@ class InformeService():
         canvas_obj.restoreState()
 
     @staticmethod
-    def crear_informe(predicciones: list[dict]):
+    def crear_informe(predicciones: dict):
+
+        if not isinstance(predicciones, dict):
+            print("Error : predicciones no es un diccionario válido")
+            return 
+
         directorio = Path(__file__).resolve().parent
         directorio.mkdir(parents=True, exist_ok=True)
         ruta_pdf = directorio / NOMBRE_ARCHIVO
@@ -148,56 +153,171 @@ class InformeService():
         story.append(HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO))
         story.append(Spacer(1, 6))
 
-        # Cabecera de la tabla
-        datos_tabla = [["Fecha", "Temp. Mín (°C)", "Prob. Helada (%)", "Nivel de Riesgo"]]
-        for p in predicciones:
-            nivel = p.get("riesgo", "—")
-            datos_tabla.append([
-                p.get("fecha", ""),
-                f"{p.get('temp_min', 0):.1f}",
-                f"{p.get('prob_helada', 0) * 100:.0f}%",
-                nivel,
-            ])
+        try:
+            # Inicialización de la cabecera de la tabla
+            datos_tabla = []
 
-        tabla = Table(datos_tabla, colWidths=[1.5 * inch, 1.5 * inch, 1.8 * inch, 1.7 * inch])
-        tabla.setStyle(TableStyle([
-            # Cabecera
-            ("BACKGROUND",    (0, 0), (-1, 0),  COLOR_PRIMARIO),
-            ("TEXTCOLOR",     (0, 0), (-1, 0),  colors.white),
-            ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
-            ("FONTSIZE",      (0, 0), (-1, 0),  10),
-            ("ALIGN",         (0, 0), (-1, 0),  "CENTER"),
-            # Filas de datos
-            ("FONTNAME",      (0, 1), (-1, -1), "Helvetica"),
-            ("FONTSIZE",      (0, 1), (-1, -1), 9),
-            ("ALIGN",         (1, 1), (-1, -1), "CENTER"),
-            ("ROWBACKGROUNDS",(0, 1), (-1, -1), [colors.white, COLOR_FONDO_TABLA]),
-            # Bordes
-            ("GRID",          (0, 0), (-1, -1), 0.5, colors.lightgrey),
-            ("BOX",           (0, 0), (-1, -1), 1,   COLOR_PRIMARIO),
-            # Padding
-            ("TOPPADDING",    (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ]))
-        story.append(tabla)
+            # Inicialización de datos específicos por prediccion
+            datos_variedades = []
+            datos_localidades = []
 
-        story.append(Spacer(1, 0.2 * inch))
+            # Obtener datos de predicción sobre variedades si se ha especificado en la predicción. Puede ser None
+            if predicciones.get('evaluaciones_variedades', {}):
+                datos_variedades = predicciones.get('evaluaciones_variedades', {}).get('evaluaciones', [])
 
-        # Sección: Notas / alertas
-        story.append(Paragraph("3. Notas y Alertas", estilo_titulo))
-        story.append(HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO))
-        story.append(Spacer(1, 6))
+            # Obtener datos de predicción sobre localidades si se ha especificado en la predicción. Puede ser None
+            if not datos_variedades:
+                datos_localidades = predicciones.get('evaluacion_localidades', {}).get('evaluaciones', [])
 
-        alertas = [p for p in predicciones if p.get("riesgo") == "Alto"]
-        if alertas:
-            story.append(Paragraph(
-                f"⚠ Se han detectado {len(alertas)} periodos con riesgo ALTO de helada. "
-                "Se recomienda activar medidas de protección de cultivos.",
-                estilo_alerta,
-            ))
-        else:
-            story.append(Paragraph("No se detectan periodos de riesgo alto en el horizonte analizado.", estilo_normal))
+            # Obtener la fecha de prediccion
+            fecha = predicciones.get("contexto", {}).get("fecha_generacion", "")
+            if fecha:
+                fecha = datetime.fromisoformat(fecha).strftime("%Y-%m-%d")
+            else:
+                "-"
 
-        # ── Construir el PDF pasando la función de encabezado/pie ──
-        doc.build(story, onFirstPage = InformeService.encabezado_pie, onLaterPages = InformeService.encabezado_pie)
-        print(f"PDF generado: {NOMBRE_ARCHIVO}")
+            if datos_variedades: # Quiero que rellene la tabla con datos de variedades predecidas
+                # Añado un nuevo campo a la cabecera
+                datos_tabla = [["Fecha", "Temp. Min (ºC)", "Probabilidad Helada %", "Variedad", "Nivel de Riesgo"]]
+                for p in datos_variedades:
+                    print(f"Dato variedad : {p}")
+                    nivel = p.get("nivel_riesgo", "—")
+                    prob_helada = 0.25 # Temporal
+                    datos_tabla.append(
+                        [
+                            f"{fecha}",
+                            f"{p.get("temperatura_evaluada", 0):.1f}",
+                            f"{prob_helada * 100:.0f}%",
+                            p.get('variedad', "-"),
+                            nivel
+                        ]
+                    )
+            elif datos_localidades:
+                print(f"Datos localidades : {datos_localidades}")
+                # Modifico la cabecera general
+                datos_tabla = [["Fecha", "Localidad", "Provincia", "Temp. Mín (ºC)", "Temp. Max (ºC)", "Nivel de Riesgo"]]
+                for p in datos_localidades:
+                    datos_tabla.append(
+                        [
+                            f"{fecha}",
+                            p.get('localidad', '-'),
+                            p.get('provincia', '-'),
+                            f"{p.get('temperatura_minima', 0):.1f}",
+                            f"{p.get('temperatura_maxima', 0):.1f}",
+                            p.get('nivel_riesgo', "-")
+                        ]
+                    )
+            else:
+                # Cabecera de la tabla general
+                datos_tabla = [["Fecha", "Estado del cielo", "Tendencia Temp. General", "Precipitaciones"]]
+                # Prediccion sin filtros específicos
+                datos_tabla.append(
+                    [
+                        f"{fecha}",
+                        predicciones.get("datos_meteorologicos", {}).get("estado_cielo", "-"),
+                        predicciones.get("datos_meteorologicos", {}).get('tendencia_temp_general'),
+                        predicciones.get("datos_meteorologicos", {}).get('precipitaciones', "-")
+                    ]
+                )
+
+            # Determinar el ancho de las columnas en función del tipo de prediccion obtenida
+            if datos_variedades:
+                col_widths = [1.2 * inch, 1.2 * inch, 1.3 * inch, 1.5 * inch, 1.3 * inch]
+            elif datos_localidades:
+                col_widths = [1.0 * inch, 1.2 * inch, 1.0 * inch, 1.0 * inch, 1.0 * inch, 1.2 * inch]
+            else:
+                col_widths = [1.5 * inch, 1.8 * inch, 1.8 * inch, 1.7 * inch]
+
+            tabla = Table(datos_tabla, colWidths = col_widths)
+            tabla.setStyle(TableStyle([
+                # Cabecera
+                ("BACKGROUND",    (0, 0), (-1, 0),  COLOR_PRIMARIO),
+                ("TEXTCOLOR",     (0, 0), (-1, 0),  colors.white),
+                ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
+                ("FONTSIZE",      (0, 0), (-1, 0),  10),
+                ("ALIGN",         (0, 0), (-1, 0),  "CENTER"),
+                # Filas de datos
+                ("FONTNAME",      (0, 1), (-1, -1), "Helvetica"),
+                ("FONTSIZE",      (0, 1), (-1, -1), 9),
+                ("ALIGN",         (1, 1), (-1, -1), "CENTER"),
+                ("ROWBACKGROUNDS",(0, 1), (-1, -1), [colors.white, COLOR_FONDO_TABLA]),
+                # Bordes
+                ("GRID",          (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                ("BOX",           (0, 0), (-1, -1), 1,   COLOR_PRIMARIO),
+                # Padding
+                ("TOPPADDING",    (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]))
+            story.append(tabla)
+
+            story.append(Spacer(1, 0.2 * inch))
+
+            # Sección: Notas / alertas
+            story.append(Paragraph("3. Notas y Alertas", estilo_titulo))
+            story.append(HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO))
+            story.append(Spacer(1, 6))
+
+            if datos_variedades:
+                alertas_generales = predicciones.get("alertas", [])
+                for alerta in alertas_generales:
+                    story.append(
+                        Paragraph(
+                            f"⚠ {alerta.get('mensaje', "-")} {alerta.get('recomendacion', "-")} - Nivel de alerta: {alerta.get('nivel', "-")}",
+                            estilo_alerta
+                        )
+                    )
+                
+                for p in datos_variedades:
+                    alertas_variedades = p.get('alertas', [])
+                    for alerta in alertas_variedades:
+                        story.append(
+                            Paragraph(
+                                f"⚠ Alerta sobre la variedad {p.get('variedad', "-")}: {alerta.get('mensaje', "-")} {alerta.get('recomendacion', "-")} - Nivel de alerta: {alerta.get('nivel', "-")}",
+                                estilo_alerta
+                            )
+                        )
+            elif datos_localidades:
+                alertas_generales = predicciones.get("alertas", [])
+                for alerta in alertas_generales:
+                    story.append(
+                        Paragraph(
+                            f"⚠ {alerta.get('mensaje', "-")} {alerta.get('recomendacion', "-")} - Nivel de alerta: {alerta.get('nivel', "-")}",
+                            estilo_alerta
+                        )
+                    )
+                
+                for p in datos_localidades:
+                    story.append(
+                        Paragraph(
+                            p.get('resumen', "-"),
+                            estilo_normal
+                        )
+                    )
+            else:
+                story.append(Paragraph("No se detectan periodos de riesgo alto en el horizonte analizado.", estilo_normal))
+            
+            riesgos_heladas_blancas = predicciones.get('riesgos_heladas_blancas', [])
+            riesgos_heladas_negras = predicciones.get('riesgos_heladas_negras', [])
+            if riesgos_heladas_blancas: # Incluyo información de heladas blancas y negras si existen
+                for r in riesgos_heladas_blancas:
+                    story.append(
+                        Paragraph(
+                            f"Se ha registrado un riesgo por helada blanca: {r.get('humedad', 0)} Valor de Humedad, {r.get('temperatura', 0)} Valor de Temperatura"
+                        ),
+                        estilo_normal
+                    )
+            if riesgos_heladas_negras:
+                for r in riesgos_heladas_negras:
+                    story.append(
+                        Paragraph(
+                            f"Se ha registrado un riesgo por helada negra: {r.get('humedad', 0)} Valor de Humedad, {r.get('temperatura', 0)} Valor de Temperatura"
+                        ),
+                        estilo_normal
+                    )
+            # ── Construir el PDF pasando la función de encabezado/pie ──
+            doc.build(story, onFirstPage = InformeService.encabezado_pie, onLaterPages = InformeService.encabezado_pie)
+            print(f"PDF generado: {NOMBRE_ARCHIVO}")
+        
+        except Exception as e:
+            print(f"Error al generar el PDF: {e}")
+            return

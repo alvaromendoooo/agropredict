@@ -130,7 +130,7 @@ class DataServiceClient(BaseClient):
             if province_code:
                 url = f"{self.base_forecast_url}/{zona}/{prediccion}?provinciaId={province_code}"
             elif ccaa_code:
-                url = f"{self.base_forecast_url}/{zona}/{prediccion}?provinciaId={ccaa_code}"
+                url = f"{self.base_forecast_url}/{zona}/{prediccion}?ccaaId={ccaa_code}"
             else: # nacional
                 url = f"{self.base_forecast_url}/{zona}/{prediccion}"
 
