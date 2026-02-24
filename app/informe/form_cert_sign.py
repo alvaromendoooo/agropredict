@@ -20,7 +20,7 @@ class FirmaService():
         BASE_DIR = Path(__file__).resolve().parent
         INFORME_DIR = BASE_DIR
 
-        nombre_archivo = f"reporte_riesgos_heladas_{hoy}.pdf"
+        nombre_archivo = "reporte_riesgos_heladas_acumulado.pdf"
 
         ruta_pdf = INFORME_DIR / nombre_archivo
 

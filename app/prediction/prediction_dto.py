@@ -58,6 +58,7 @@ class AnalisisCultivoDTO:
     nombre_cientifico : str
     etapa_fenologica : str
     temperatura_evaluada : str
+    porcentaje_riesgo : float
     nivel_riesgo : str
     umbrales : UmbralesCultivoDTO
     alertas : list[AlertaDTO]
@@ -79,6 +80,7 @@ class AnalisisLocalidadDTO:
     nivel_riesgo : str
     resumen : str
     recomendaciones : list[str]
+    porcentaje_riesgo : float
     cota_nieve : Optional[CotaNieveDTO]
 
 @dataclass

@@ -73,6 +73,52 @@ class HeladaPredictionService():
         # P (X > z)
         # Probabilidad de que la helada ocurra después del día dado
         return 0.5*(1 - erf(z / sqrt(2)))
+    
+    @staticmethod
+    def calcular_nivel_riesgo_porcentaje(
+        temperatura : float,
+        humedad : Optional[float], 
+        viento : Optional[float],
+        prob_heladad : Optional[float] 
+    ) -> float:
+        """
+        Calcula el nivel de riesgo de helada en porcentaje en base a múltiples factores
+        Retorna un valor entre 0 y 100
+        """
+
+        nivel_base = 0
+
+        # Factor de temperatura (peso de 60%)
+        if temperatura <= 0:
+            nivel_base += 60
+        elif temperatura <= 1.6:
+            nivel_base += 40
+        elif temperatura <= 3.0:
+            nivel_base += 20
+        elif temperatura <= 5.0:
+            nivel_base += 10
+        else:
+            nivel_base += 5
+
+        # Factor probabilidad de helada si está disponible (30%)
+        if prob_heladad is not None:
+            nivel_base += prob_heladad * 30
+        
+        # Factor humedad para heladas blancas (10%)
+        if humedad is not None:
+            if humedad >= 80:
+                nivel_base += 10
+            elif humedad >= 60:
+                nivel_base += 5
+        
+        # Factor viento (ajuste fino)
+        if viento is not None:
+            if viento < 5:  # Poco viento aumenta riesgo
+                nivel_base += 5
+            elif viento > 15:  # Mucho viento disminuye riesgo
+                nivel_base -= 5
+        
+        return max(0, min(100, nivel_base))
 
     @staticmethod
     def _datos_historicos_calculados_temp(
@@ -288,6 +334,7 @@ class HeladaPredictionService():
         variedades = evaluacion_variedades.get('variedades')
         etapa = evaluacion_variedades.get('etapa_fenologica')
         temperatura = evaluacion_variedades.get('temperatura')
+        porcentaje = evaluacion_variedades.get('porcentaje_riesgo', 0)
         
         alerta = None
 
@@ -324,7 +371,7 @@ class HeladaPredictionService():
             }.get(nivel_riesgo, TipoAlerta.INFORMATIVA)
 
             alerta = AlertaDTO(
-                mensaje = f"Variedad {variedades} en etapa de {etapa}: riesgo {nivel_riesgo} a temperatura {temperatura:.1}C",
+                mensaje = f"Variedad {variedades} en etapa de {etapa}: riesgo {nivel_riesgo} a temperatura {temperatura:.1}C (riesgo cuantificado: {porcentaje:.0f}%)",
                 recomendacion = recomendacion_variedades,
                 nivel = tipo_alerta
             )
@@ -434,13 +481,21 @@ class HeladaPredictionService():
                 if umbral_activo else 'Sin etapa fenologica'
             )
 
+            porcentaje_riesgo = HeladaPredictionService.calcular_nivel_riesgo_porcentaje(
+                temperatura = temperatura_minima,
+                humedad = None,
+                viento = None,
+                prob_heladad = 0.25
+            )
+
             # 3. Genero las alertas especificas para esta variedad
             alerta_evaluacion = HeladaPredictionService._generate_alerta_variedad(
                 evaluacion_variedades = {
                     'nivel_riesgo' : nivel,
                     'variedades':  nombre_variedad,
                     'etapa_fenologica' : etapa_nombre,
-                    'temepratura' : temperatura_minima
+                    'temepratura' : temperatura_minima,
+                    'porcentaje_riesgo' : porcentaje_riesgo
                 }
             )
 
@@ -474,6 +529,7 @@ class HeladaPredictionService():
                     temperatura_evaluada = temperatura_minima,
                     nivel_riesgo = nivel,
                     umbrales = umbrales_dto,
+                    porcentaje_riesgo = porcentaje_riesgo,
                     alertas = [alerta_evaluacion] if alerta_evaluacion else []
                 )
             )
@@ -598,6 +654,14 @@ class HeladaPredictionService():
 
             riesgos[nivel_riesgo] += 1
 
+            # Calcular porcentaje de riesgo
+            procentaje_riesgo = HeladaPredictionService.calcular_nivel_riesgo_porcentaje(
+                temperatura = temperatura_minima,
+                humedad = 70 if existencia_nieblas else 50,
+                viento = datos['datos'].get('rachas_viento', 0),
+                prob_heladad = None
+            )
+
             lista_analisis.append(
                 AnalisisLocalidadDTO(
                     localidad = localidad['nombre'],
@@ -606,6 +670,7 @@ class HeladaPredictionService():
                     temperatura_minima = temperatura_minima,
                     temperatura_maxima = temperatura_maxima,
                     nivel_riesgo = nivel_riesgo,
+                    porcentaje_riesgo = procentaje_riesgo,
                     resumen = (
                         f"La localidad {localidad['nombre']} (altitud {altitud} m) "
                         f"presenta un riesgo {nivel_riesgo} sin considerar la cota de nieve "
@@ -745,6 +810,7 @@ class HeladaPredictionService():
                     altitud_metros=altitud,
                     temperatura_minima=temperatura_minima,
                     temperatura_maxima=temperatura_maxima,
+                    porcentaje_riesgo = 60,
                     nivel_riesgo=nivel_riesgo,
                     resumen=(
                         f"La localidad {localidad['nombre']} (altitud {altitud} m) "
