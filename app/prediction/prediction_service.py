@@ -1298,6 +1298,15 @@ class HeladaPredictionService():
                 predicciones_variedad
             )
 
+            if variedades and len(variedades) > 0:
+                nivel_riesgo_ajustado, alertas_actualizadas = HeladaPredictionService.aplicar_condiciones_horas_frio(
+                    variedades = variedades,
+                    nivel_riesgo_actual = nivel_riesgo,
+                    alertas = alertas
+                )
+                nivel_riesgo = nivel_riesgo_ajustado
+                alertas = alertas_actualizadas
+
             alertas.append(alerta)
             comentarios += f" Se evaluaron {predicciones_variedad.total_variedades_evaluados} variedades de cultivo."
 

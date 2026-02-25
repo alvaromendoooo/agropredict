@@ -16,6 +16,8 @@ class DataServiceClient(BaseClient):
         self.base_historical_url = app.config.get('DATA_SERVICE_HISTORIC_BASE_URL')
         self.base_forecast_url = app.config.get('DATA_SERVICE_FORECAST_BASE_URL')
         self.base_crop_url = app.config.get('DATA_SERVICE_CROP_BASE_URL')
+        self.base_plaga_url = app.config.get('DATA_SERVICE_PLAGAS_URL')
+        self.base_sensores_url = app.config.get('DATA_SERVICE_SENSORES_URL')
 
     @circuit(cls = CircuitBreakerPersonalizado)
     def get_historic_data_day(
@@ -270,3 +272,64 @@ class DataServiceClient(BaseClient):
             print(f"Fallo obteniendo horas_frio sobre la variedad {nombre_variedad} : {e}")
             return None
 
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_datos_plagas(
+        self,
+        cultivo : str,
+        grupo : str,
+        tipo : str
+    ):
+        try:
+            url = f"{self.base_plaga_url}?cultivo={cultivo.lower()}&grupo={grupo.upper()}&tipo={tipo.lower()}"
+
+            response = self._make_request(
+                method = 'GET',
+                url = url
+            )
+
+            if response.status_code == 404:
+                logger.error(f"No se han recuperado valores de plaga para los parámetros indicados {cultivo} - {grupo} - {tipo}")
+                return None
+            if response.status_code >= 500:
+                logger.error("Ha ocurrido un error con el proveedor data-service consultando datos de plagas")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            print(f"Fallo obteniendo datos sobre plagas: {e}")
+            return None
+
+    @circuit
+    def get_datos_sensores(
+        self, 
+        eui : str,
+        fecha_inicio : date,
+        fecha_fin : date
+    ):
+        try:
+            if not all([eui, fecha_inicio, fecha_fin]):
+                raise ValueError("Error, para consultar datos de sensores, se deben indicar los siguientes parámetros (eui, fecha_inicio, fecha_fin)")
+            url = f"{self.base_sensores_url}?eui={eui}&fecha_inicio={fecha_inicio}&fecha_fin={fecha_fin}"
+
+            response = self._make_request(
+                url = url,
+                method = 'GET'
+            )
+
+            if response.status_code == 404:
+                logger.error("No se han encontrado datos de sensores sobre los parámetros indicados")
+                return None
+            if response.status_code >= 500:
+                logger.error("Se ha producido un error por parte de data-service")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            logger.error(f"Se ha producido un error al obtener datos de sensores sobre data-service : {e}")
+            return None

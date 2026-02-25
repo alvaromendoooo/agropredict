@@ -10,5 +10,41 @@
     "localidad": "Plasencia",
     "provincia": "CC",
     "altitud": 415
+  },
+  {
+    "fecha": "24/02/2026",
+    "tipo": "variedad",
+    "nombre": "lauranne",
+    "temp_min": 5,
+    "temp_max": null,
+    "nivel": "moderado",
+    "porcentaje_riesgo": 17.5,
+    "localidad": null,
+    "provincia": null,
+    "altitud": null
+  },
+  {
+    "fecha": "24/02/2026",
+    "tipo": "variedad",
+    "nombre": "guara",
+    "temp_min": 5,
+    "temp_max": null,
+    "nivel": "moderado",
+    "porcentaje_riesgo": 17.5,
+    "localidad": null,
+    "provincia": null,
+    "altitud": null
+  },
+  {
+    "fecha": "25/02/2026",
+    "tipo": "variedad",
+    "nombre": "lauranne",
+    "temp_min": 7,
+    "temp_max": null,
+    "nivel": "moderado",
+    "porcentaje_riesgo": 12.5,
+    "localidad": null,
+    "provincia": null,
+    "altitud": null
   }
 ]
