@@ -80,7 +80,7 @@ def prediccion_heladas_observadas(
         )
 
         datos_json = dataclass_to_json(datos_prediccion)
-        generar_informe_background(current_app._get_current_object(), datos_prediccion = datos_json, acumular = True)
+        generar_informe_background(current_app._get_current_object(), datos_prediccion = datos_json, acumular = True, is_cultivo = incluir_variedades)
         
         return datos_json, 200
     
@@ -199,7 +199,7 @@ def prediccion_heladas_futuras(
         
         datos_response = dataclass_to_json(datos)
         datos_dict = datos_response.get_json()
-        generar_informe_background(current_app._get_current_object(), datos_prediccion = datos_dict, acumular = True)
+        generar_informe_background(current_app._get_current_object(), datos_prediccion = datos_dict, acumular = True, is_cultivo = incluir_variedades)
 
         return datos_response, 200
 

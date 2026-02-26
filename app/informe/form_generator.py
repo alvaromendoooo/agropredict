@@ -3,12 +3,14 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, cm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, PageBreak, KeepTogether
+from reportlab.graphics.charts.linecharts import HorizontalLineChart
+from reportlab.graphics.shapes import Drawing
+from reportlab.graphics.widgets.markers import makeMarker
 from reportlab.pdfgen import canvas
 from datetime import date, datetime, timedelta
 from pathlib import Path
 import os
 import json
-import shutil
 
 
 ruta_directorio_actual = os.getcwd()
@@ -61,7 +63,6 @@ class InformeService():
         Extrae los datos relevantes de la predicción para la tabla acumulativa
         """
         filas = []
-        print(f"Predicciones : {predicciones}")
 
         datos_variedades = predicciones.get('evaluaciones_variedades', {})
         print(type(datos_variedades))
@@ -116,6 +117,75 @@ class InformeService():
             })
         
         return filas
+    
+    def _generar_grafico(data: list, is_cultivo: bool):
+        d = Drawing(400, 200)
+
+        # Extraigo fechas únicas y mantener el orden
+        fechas = list(dict.fromkeys(dato['fecha'] for dato in data))
+
+        # Extraigo nombres únicos (para series)
+        etiquetas = list(dict.fromkeys(
+            dato['nombre'] 
+            for dato in data 
+            if not is_cultivo or (is_cultivo and dato.get('tipo') == 'variedad')
+        ))
+
+        # Construyo los datos para cada serie
+        series = []
+        for nombre in etiquetas:
+            serie = []
+            for fecha in fechas:
+                encontrado = next(
+                    (d['porcentaje_riesgo'] for d in data 
+                    if d['nombre'] == nombre and d['fecha'] == fecha),
+                    0
+                )
+                serie.append(encontrado)
+            series.append(serie)
+
+        # Si solo hay una fecha, duplicamos para que la línea se dibuje
+        if len(fechas) == 1:
+            fechas.append(fechas[0])
+            for serie in series:
+                serie.append(serie[0])
+
+        # Crear gráfico
+        lc = HorizontalLineChart()
+        lc.x = 50
+        lc.y = 50
+        lc.height = 125
+        lc.width = 300
+        lc.data = series
+        lc.joinedLines = 1
+        lc.fillColor = colors.white
+        lc.categoryAxis.categoryNames = fechas
+        lc.categoryAxis.labels.boxAnchor = 'n'
+        lc.valueAxis.valueMin = 0
+        lc.valueAxis.valueMax = 100
+        lc.valueAxis.valueSteps = [5, 15, 25, 50, 75, 100]
+
+        # Configurar líneas
+        for i, line in enumerate(lc.lines):
+            line.strokeWidth = 2 if i == 0 else 1.5
+            line.symbol = makeMarker('Circle')  # Siempre dibuja un punto también
+
+        from reportlab.graphics.charts.legends import LineLegend
+
+        # Leyenda
+        legend = LineLegend()
+        legend.fontSize = 8
+        legend.alignment = 'right'
+        legend.x = 0
+        legend.y = 0
+        legend.columnMaximum = 2
+        legend.fontName = 'Helvetica'
+        color_pairs = [(lc.lines[i].strokeColor, etiquetas[i]) for i in range(len(series))]
+        legend.colorNamePairs = color_pairs
+        print(f"LC : {lc}")
+        d.add(lc)
+        d.add(legend)
+        return d
     
     @staticmethod
     def _generar_tabla_historica(historial_datos):
@@ -267,7 +337,10 @@ class InformeService():
         canvas_obj.restoreState()
 
     @staticmethod
-    def crear_informe(predicciones: dict, acumular: bool = True):
+    def crear_informe(
+        predicciones: dict, 
+        acumular: bool = True, 
+        is_cultivo : bool = True):
         """
         Crea o actualiza un informe acumulativo de predicciones
         
@@ -454,7 +527,14 @@ class InformeService():
             "temperaturas mínimas y probabilidades de helada a lo largo del tiempo.",
             estilo_normal
         ))
-        
+        # Obtengo el gráfico configurado
+        d = InformeService._generar_grafico(
+            data = historial_datos,
+            is_cultivo = is_cultivo
+        )
+
+        story.append(d)
+
         # Construir el PDF
         doc.build(story, onFirstPage=InformeService.encabezado_pie, 
                  onLaterPages=InformeService.encabezado_pie)
