@@ -31,6 +31,10 @@ class FirmaService():
         
         with open(ruta_pdf, "rb") as f:
             w = IncrementalPdfFileWriter(f)
+            
+            # Calculamos el índice (0 es la primera página)
+            num_paginas = w.root['/Pages']['/Count']
+            index_last_page = num_paginas - 1
 
             signer = signers.SimpleSigner.load(
                 key_file = INFORME_DIR / "clave.key",
@@ -43,9 +47,10 @@ class FirmaService():
                 signer = signer,
                 new_field_spec=SigFieldSpec(
                     sig_field_name="Firma Reporte EPCC",
+                    on_page = index_last_page,
                     box=(50, 50, 250, 150)
                 )
             )
 
             with open(INFORME_DIR / f"reporte_firmado_{hoy}.pdf", "wb") as outf:
-                pdf_signer.sign_pdf(w, output = outf)
+                pdf_signer.sign_pdf(w, output=outf)

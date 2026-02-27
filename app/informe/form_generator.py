@@ -144,12 +144,6 @@ class InformeService():
                 serie.append(encontrado)
             series.append(serie)
 
-        # Si solo hay una fecha, duplicamos para que la línea se dibuje
-        if len(fechas) == 1:
-            fechas.append(fechas[0])
-            for serie in series:
-                serie.append(serie[0])
-
         # Crear gráfico
         lc = HorizontalLineChart()
         lc.x = 50
@@ -166,9 +160,9 @@ class InformeService():
         lc.valueAxis.valueSteps = [5, 15, 25, 50, 75, 100]
 
         # Configurar líneas
-        for i, line in enumerate(lc.lines):
+        """for i, line in enumerate(lc.lines):
             line.strokeWidth = 2 if i == 0 else 1.5
-            line.symbol = makeMarker('Circle')  # Siempre dibuja un punto también
+            line.symbol = makeMarker('Circle')  # Siempre dibuja un punto también"""
 
         from reportlab.graphics.charts.legends import LineLegend
 
@@ -182,7 +176,7 @@ class InformeService():
         legend.fontName = 'Helvetica'
         color_pairs = [(lc.lines[i].strokeColor, etiquetas[i]) for i in range(len(series))]
         legend.colorNamePairs = color_pairs
-        print(f"LC : {lc}")
+
         d.add(lc)
         d.add(legend)
         return d
