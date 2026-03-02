@@ -277,10 +277,14 @@ class DataServiceClient(BaseClient):
         self,
         cultivo : str,
         grupo : str,
-        tipo : str
+        tipo : str,
+        plaga_id : Optional[int]
     ):
         try:
-            url = f"{self.base_plaga_url}?cultivo={cultivo.lower()}&grupo={grupo.upper()}&tipo={tipo.lower()}"
+            if not plaga_id:
+                url = f"{self.base_plaga_url}?cultivo={cultivo.lower()}&grupo={grupo.upper()}&tipo={tipo.lower()}"
+            else:
+                url = f"{self.base_plaga_url}?cultivo={cultivo.lower()}&grupo={grupo.upper()}&tipo={tipo.lower()}&id={plaga_id}"
 
             response = self._make_request(
                 method = 'GET',
@@ -300,6 +304,34 @@ class DataServiceClient(BaseClient):
         
         except requests.RequestException as e:
             print(f"Fallo obteniendo datos sobre plagas: {e}")
+            return None
+    
+    @circuit
+    def get_cultivo_plaga_calendar(
+        self,
+        nombres_cultivos : list[str]
+    ):
+        try:
+            url = f"{self.base_crop_url}/plague?cultivos={nombres_cultivos}"
+
+            response = self._make_request(
+                method = 'GET',
+                url = url,
+            )
+
+            if response.status_code == 404:
+                logger.error(f"No se han recuperado valores de plaga para los parámetros indicados {nombres_cultivos}")
+                return None
+            if response.status_code >= 500:
+                logger.error("Ha ocurrido un error con el proveedor data-service consultando datos de cultivo_plaga")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            print(f"Fallo obteniendo datos sobre cultivo_plagas : {e}")
             return None
 
     @circuit

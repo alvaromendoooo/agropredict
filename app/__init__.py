@@ -1,7 +1,7 @@
 from flask import Flask
 from dotenv import load_dotenv
 from config.config import Config
-from .prediction import helada_bp
+from .prediction import helada_bp, plagas_bp
 import os
 
 load_dotenv()
@@ -13,5 +13,6 @@ def create_app(config_class = Config):
 
     
     app.register_blueprint(helada_bp)
+    app.register_blueprint(plagas_bp)
     
     return app

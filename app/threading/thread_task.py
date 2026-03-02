@@ -1,5 +1,7 @@
 import threading
 import logging
+from ..informe.form_cert_sign import FirmaService
+
 
 logger = logging.getLogger()
 
@@ -30,7 +32,7 @@ def _background_pipeline(
                 logger.error(f"Fallo en el paso: {func.__name__} : {e}")
                 break
 
-def generar_informe_background(
+def generar_informe_heladas_background(
     app,
     datos_prediccion : dict,
     acumular : bool,
@@ -40,25 +42,38 @@ def generar_informe_background(
     Lanza en background la generación del informe y su firma digital.
     Los dos pasos se ejecutan en secuencia dentro del mismo hilo.
     """
-    from ..informe.form_generator import InformeService
-    from ..informe.form_cert_sign import FirmaService
-
-    datos = [
-        {"fecha": "2025-01-14", "temp_min": 1.5,  "prob_helada": 0.32, "riesgo": "Bajo"},
-        {"fecha": "2025-01-15", "temp_min": -1.2, "prob_helada": 0.71, "riesgo": "Medio"},
-        {"fecha": "2025-01-16", "temp_min": -4.0, "prob_helada": 0.93, "riesgo": "Alto"},
-        {"fecha": "2025-01-17", "temp_min": -2.8, "prob_helada": 0.85, "riesgo": "Alto"},
-        {"fecha": "2025-01-18", "temp_min": 0.3,  "prob_helada": 0.45, "riesgo": "Medio"},
-    ]
+    from ..informe.form_frost_generator import InformeHeladaService
 
     pasos = [
-        (InformeService.crear_informe, (datos_prediccion,acumular,is_cultivo,), {}),
-        (FirmaService.generar_firma, (),{}),
+        (InformeHeladaService.crear_informe, (datos_prediccion,acumular,is_cultivo,), {}),
+        (FirmaService.generar_firma, ("heladas",),{}),
     ]
 
     thread = threading.Thread(
         target=_background_pipeline,
         args=(app, pasos),
         daemon=True
+    )
+    thread.start()
+
+def generar_informe_plagas_background(
+    app, 
+    plagas : list
+):
+    """
+    Lanza en background la generación del informe sobre riesgos de plagas y enfermedades y 
+    su firma digital.
+    """
+    from ..informe.form_plagues_generator import InformePlagaService
+
+    pasos = [
+        (InformePlagaService.crear_informe, (plagas), {}),
+        (FirmaService.generar_firma, ("plagas",), {}),
+    ]
+
+    thread = threading.Thread(
+        target = _background_pipeline,
+        args = (app, pasos),
+        daemon = True
     )
     thread.start()

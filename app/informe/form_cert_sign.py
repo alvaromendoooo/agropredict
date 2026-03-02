@@ -13,14 +13,20 @@ import os
 load_dotenv()
 
 class FirmaService():
-    def generar_firma():
+    def generar_firma(
+        tipo_prediccion : str
+    ):
 
         hoy = date.today()
         
         BASE_DIR = Path(__file__).resolve().parent
         INFORME_DIR = BASE_DIR
 
-        nombre_archivo = "reporte_riesgos_heladas_acumulado.pdf"
+        nombre_archivo = None
+        if tipo_prediccion == "heladas":
+            nombre_archivo = "reporte_riesgos_heladas_acumulado.pdf"
+        elif tipo_prediccion == "plagas":
+            nombre_archivo = "reporte_riesgos_plagas.pdf"
 
         ruta_pdf = INFORME_DIR / nombre_archivo
 
@@ -52,5 +58,9 @@ class FirmaService():
                 )
             )
 
-            with open(INFORME_DIR / f"reporte_firmado_{hoy}.pdf", "wb") as outf:
-                pdf_signer.sign_pdf(w, output=outf)
+            if tipo_prediccion == "heladas":
+                with open(INFORME_DIR / f"reporte_heladas_firmado_{hoy}.pdf", "wb") as outf:
+                    pdf_signer.sign_pdf(w, output=outf)
+            elif tipo_prediccion == "plagas":
+                with open(INFORME_DIR / f"reporte_plagas_firmado_{hoy}.pdf", "wb") as outf:
+                    pdf_signer.sign_pdf(w, output=outf)

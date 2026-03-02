@@ -1,12 +1,15 @@
-from .prediction_service import HeladaPredictionService
-from . import helada_bp
+from .prediction_service import PredictionService
+from . import helada_bp, plagas_bp
 from ..globals.log_decorator import log
 from ..globals.ApiExceptions import APIException
 from ..globals.dto2dict import dataclass_to_json
 from flask import jsonify
 import logging
 import json
-from ..threading.thread_task import generar_informe_background
+from ..threading.thread_task import( 
+    generar_informe_heladas_background, 
+    generar_informe_plagas_background
+)
 from flask import request, current_app
 
 logger = logging.getLogger(__name__)
@@ -61,7 +64,7 @@ def prediccion_heladas_observadas(
         variedades_lista = None
         if variedades:
             variedades_lista = [v.strip().lower() for v in variedades.split(',')]
-            variedades_disponibles = HeladaPredictionService.listar_variedades_disponibles()
+            variedades_disponibles = PredictionService.listar_variedades_disponibles()
             for v in variedades_lista:
                 if v not in variedades_disponibles:
                     raise APIException(
@@ -71,7 +74,7 @@ def prediccion_heladas_observadas(
                     )
 
         # Obtengo la prediccion
-        datos_prediccion = HeladaPredictionService.obtener_predicciones_helada_observadas(
+        datos_prediccion = PredictionService.obtener_predicciones_helada_observadas(
             province_code = province_code,
             estacion_code = estacion_code,
             type = tipo.lower(),
@@ -80,7 +83,7 @@ def prediccion_heladas_observadas(
         )
 
         datos_json = dataclass_to_json(datos_prediccion)
-        generar_informe_background(current_app._get_current_object(), datos_prediccion = datos_json, acumular = True, is_cultivo = incluir_variedades)
+        generar_informe_heladas_background(current_app._get_current_object(), datos_prediccion = datos_json, acumular = True, is_cultivo = incluir_variedades)
         
         return datos_json, 200
     
@@ -115,7 +118,7 @@ def listar_variedades():
     Endpoint encargado de mostrar al cliente las variedades de cultivo disponibles
     """
     try:
-        variedades_disponibles = HeladaPredictionService.listar_variedades_disponibles()
+        variedades_disponibles = PredictionService.listar_variedades_disponibles()
 
         return jsonify({
             'total' : len(variedades_disponibles),
@@ -165,7 +168,7 @@ def prediccion_heladas_futuras(
         variedades_lista = None
         if variedades:
             variedades_lista = [v.strip().lower() for v in variedades.split(',')]
-            variedades_disponibles = HeladaPredictionService.listar_variedades_disponibles()
+            variedades_disponibles = PredictionService.listar_variedades_disponibles()
             for v in variedades_lista:
                 if v not in variedades_disponibles:
                     raise APIException(
@@ -178,7 +181,7 @@ def prediccion_heladas_futuras(
         localidad_lista = None
         if localidades:
             localidad_lista = [l.strip().lower() for l in localidades.split(',')]
-            localidades_disponibles = HeladaPredictionService.listar_localidades_disponibles()
+            localidades_disponibles = PredictionService.listar_localidades_disponibles()
             for l in localidad_lista:
                 if l not in localidades_disponibles:
                     raise APIException(
@@ -187,7 +190,7 @@ def prediccion_heladas_futuras(
                         error = 'Invalid locality params'
                     )
 
-        datos = HeladaPredictionService.obtener_predicciones_helada_futuras(
+        datos = PredictionService.obtener_predicciones_helada_futuras(
             province_code = provinciaId,
             ccaa_code = ccaaId,
             zona = zona,
@@ -199,7 +202,7 @@ def prediccion_heladas_futuras(
         
         datos_response = dataclass_to_json(datos)
         datos_dict = datos_response.get_json()
-        generar_informe_background(current_app._get_current_object(), datos_prediccion = datos_dict, acumular = True, is_cultivo = incluir_variedades)
+        generar_informe_heladas_background(current_app._get_current_object(), datos_prediccion = datos_dict, acumular = True, is_cultivo = incluir_variedades)
 
         return datos_response, 200
 
@@ -226,3 +229,55 @@ def prediccion_heladas_futuras(
             'status': 500,
             'error': 'Internal server error'
         }), 500
+    
+@plagas_bp.route('/plagas/calculadas', methods = ['GET'])
+@log('../logs/fichero_salida.json')
+def prediccion_plagas_calculadas():
+    try:
+
+        cultivo = request.args.get('cultivo')
+
+        if not cultivo:
+            return jsonify(
+                {
+                    'success' : 'false',
+                    'code' : '400',
+                    'message' : 'Invalid parameters',
+                    'error' : 'Se debe indicar el valor de un query param : cultivo'
+                }
+            )
+        
+        datos = PredictionService.obtener_prediccion_plagas_calculadas(
+            cultivos = cultivo
+        )
+
+        if not datos:
+            return jsonify(
+                {
+                    'success' : 'false',
+                    'status' : '404',
+                    'message' : 'Data Not Found',
+                    'error' : f'No se han encontrado datos para hacer la predicción de riesgos de plagas frente al cultivo : {cultivo}'
+                }
+            )
+        
+        
+        datos_response = dataclass_to_json(datos)
+        datos_dict = datos_response.get_json()
+
+        generar_informe_plagas_background(
+            current_app._get_current_object(),
+            plagas = [datos_dict]
+        )
+
+        return datos_response
+    
+    except APIException as e:
+        logger.error(f"Error inesperado en prediccion_plagas_calculadas : {e}")
+        return jsonify(
+            {
+                'message' : 'Error interno del servidor',
+                'status' : 500,
+                'error' : 'Internal Server Error'
+            }
+        )

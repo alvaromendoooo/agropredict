@@ -34,6 +34,21 @@ class TipoPrediccion(str, Enum):
     AFTERTOMORROW = "pasadomanana"
 
 @dataclass
+class CultivoDTO:
+    nombre : str
+    grupo : str
+
+@dataclass
+class PlagaDTO:
+    nombre : str
+    agente_causante : str
+    momento_critico : str
+    observaciones : str
+    mas_info : str
+    tipo : str
+    nivel_riesgo : str
+
+@dataclass
 class AlertaDTO:
     mensaje : str
     recomendacion : str
@@ -153,3 +168,8 @@ class RiesgoHeladaFuturaDTO(RiesgoHeladaBaseDTO):
     precision : TipoPrecision
     datos_meteorologicos : DatoAEMETDTO
     evaluacion_localidades : Optional[ResumenEvaluacionLocalidadDTO]
+
+@dataclass
+class RiesgoPlagaCultivoDTO:
+    cultivo : CultivoDTO
+    plagas : list[PlagaDTO]

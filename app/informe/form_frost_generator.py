@@ -1,12 +1,10 @@
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch, cm
+from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, PageBreak, KeepTogether
 from reportlab.graphics.charts.linecharts import HorizontalLineChart
 from reportlab.graphics.shapes import Drawing
-from reportlab.graphics.widgets.markers import makeMarker
-from reportlab.pdfgen import canvas
 from datetime import date, datetime, timedelta
 from pathlib import Path
 import os
@@ -15,11 +13,11 @@ import json
 
 ruta_directorio_actual = os.getcwd()
 #=== INFORMACIÓN DE ESTRUCTURA INFORME ===#
-TITULO_INFORME = "Informe de Predicciones sobre Riesgos de Helada"
+TITULO_INFORME = "Informe de Predicciones ante Riesgos de Helada"
 SUBTITULO = "Predicciones Meteorológicas Automatizadas - Histórico"
 AUTOR = "Álvaro Mendo Martín"
 FECHA = date.today().strftime("%d/%m/%Y")
-NOMBRE_ARCHIVO = f"reporte_riesgos_heladas_acumulado.pdf"
+NOMBRE_ARCHIVO = "reporte_riesgos_heladas_acumulado.pdf"
 NOMBRE_UNIVERSIDAD = "Escuela Politécnica - Cáceres"
 URL_LOGO_UNIVERSIDAD = os.path.join(ruta_directorio_actual, "/assets/logouex.jpg")
 
@@ -31,7 +29,7 @@ COLOR_ACENTO = colors.red
 COLOR_HOY = colors.HexColor("#FFF3CD")  # Amarillo claro para destacar hoy
 COLOR_NUEVO = colors.HexColor("#D4EDDA")  # Verde claro para nuevas predicciones
 
-class InformeService():
+class InformeHeladaService():
     
     # Ruta para el archivo de metadatos
     METADATA_FILE = "informe_metadata.json"
@@ -39,7 +37,7 @@ class InformeService():
     @staticmethod
     def _cargar_metadata(directorio):
         """Carga los metadatos del informe existente"""
-        metadata_path = directorio / InformeService.METADATA_FILE
+        metadata_path = directorio / InformeHeladaService.METADATA_FILE
         if metadata_path.exists():
             with open(metadata_path, 'r') as f:
                 return json.load(f)
@@ -53,7 +51,7 @@ class InformeService():
     @staticmethod
     def _guardar_metadata(directorio, metadata):
         """Guarda los metadatos del informe"""
-        metadata_path = directorio / InformeService.METADATA_FILE
+        metadata_path = directorio / InformeHeladaService.METADATA_FILE
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2, default=str)
     
@@ -65,7 +63,6 @@ class InformeService():
         filas = []
 
         datos_variedades = predicciones.get('evaluaciones_variedades', {})
-        print(type(datos_variedades))
         # Determinar el tipo de predicción
         if datos_variedades is not None:
             datos = datos_variedades.get('evaluaciones')
@@ -85,7 +82,6 @@ class InformeService():
                 
         elif predicciones.get('evaluacion_localidades', {}).get('evaluaciones', []) is not None:
             datos = predicciones['evaluacion_localidades']['evaluaciones']
-            print("entro")
             for p in datos:
                 filas.append({
                     'fecha': fecha_str,
@@ -350,7 +346,7 @@ class InformeService():
         ruta_pdf = directorio / NOMBRE_ARCHIVO
         
         # Cargar metadatos existentes
-        metadata = InformeService._cargar_metadata(directorio)
+        metadata = InformeHeladaService._cargar_metadata(directorio)
         
         # Fecha de esta predicción
         fecha_prediccion = predicciones.get("contexto", {}).get("fecha_generacion", "")
@@ -360,7 +356,7 @@ class InformeService():
             fecha_prediccion = FECHA
         
         # Extraer datos para la tabla
-        nuevas_filas = InformeService._extraer_datos_para_tabla(predicciones, fecha_prediccion)
+        nuevas_filas = InformeHeladaService._extraer_datos_para_tabla(predicciones, fecha_prediccion)
         
         if acumular and ruta_pdf.exists():
             # Intentar leer el historial existente del PDF (simplificado)
@@ -388,7 +384,7 @@ class InformeService():
                 metadata['fechas_incluidas'].append(fecha_prediccion)
             metadata['ultima_actualizacion'] = datetime.now().isoformat()
             metadata['total_entradas'] = len(historial_datos)
-            InformeService._guardar_metadata(directorio, metadata)
+            InformeHeladaService._guardar_metadata(directorio, metadata)
             
         else:
             # Primer informe
@@ -400,7 +396,7 @@ class InformeService():
             metadata['fechas_incluidas'] = [fecha_prediccion]
             metadata['ultima_actualizacion'] = datetime.now().isoformat()
             metadata['total_entradas'] = len(historial_datos)
-            InformeService._guardar_metadata(directorio, metadata)
+            InformeHeladaService._guardar_metadata(directorio, metadata)
         
         # Ordenar historial por fecha (más reciente primero)
         historial_datos.sort(key=lambda x: datetime.strptime(x['fecha'], "%d/%m/%Y"), reverse=True)
@@ -490,7 +486,7 @@ class InformeService():
         story.append(Spacer(1, 6))
         
         # Generar tabla histórica
-        tabla_historica = InformeService._generar_tabla_historica(historial_datos)
+        tabla_historica = InformeHeladaService._generar_tabla_historica(historial_datos)
         if tabla_historica:
             story.append(tabla_historica)
         
@@ -522,7 +518,7 @@ class InformeService():
             estilo_normal
         ))
         # Obtengo el gráfico configurado
-        d = InformeService._generar_grafico(
+        d = InformeHeladaService._generar_grafico(
             data = historial_datos,
             is_cultivo = is_cultivo
         )
@@ -530,8 +526,8 @@ class InformeService():
         story.append(d)
 
         # Construir el PDF
-        doc.build(story, onFirstPage=InformeService.encabezado_pie, 
-                 onLaterPages=InformeService.encabezado_pie)
+        doc.build(story, onFirstPage=InformeHeladaService.encabezado_pie, 
+                 onLaterPages=InformeHeladaService.encabezado_pie)
         
         print(f"Informe acumulativo actualizado: {NOMBRE_ARCHIVO}")
         print(f"Total registros: {metadata['total_entradas']}")

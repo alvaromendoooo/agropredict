@@ -46,5 +46,41 @@
     "localidad": null,
     "provincia": null,
     "altitud": null
+  },
+  {
+    "fecha": "27/02/2026",
+    "tipo": "variedad",
+    "nombre": "trigo blanco",
+    "temp_min": 7,
+    "temp_max": null,
+    "nivel": "moderado",
+    "porcentaje_riesgo": 12.5,
+    "localidad": null,
+    "provincia": null,
+    "altitud": null
+  },
+  {
+    "fecha": "28/02/2026",
+    "tipo": "variedad",
+    "nombre": "lauranne",
+    "temp_min": 7,
+    "temp_max": null,
+    "nivel": "moderado",
+    "porcentaje_riesgo": 12.5,
+    "localidad": null,
+    "provincia": null,
+    "altitud": null
+  },
+  {
+    "fecha": "28/02/2026",
+    "tipo": "variedad",
+    "nombre": "guara",
+    "temp_min": 7,
+    "temp_max": null,
+    "nivel": "moderado",
+    "porcentaje_riesgo": 12.5,
+    "localidad": null,
+    "provincia": null,
+    "altitud": null
   }
 ]

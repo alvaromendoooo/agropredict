@@ -1,6 +1,5 @@
 from config.config import Config
 from .prediction_dto import *
-from ..crops.crops_threshold import evaluar_riesgo_varios_cultivos, listar_cultivo
 from typing import Optional, Union
 from datetime import date, timedelta
 from math import erf, sqrt
@@ -9,7 +8,7 @@ from typing import Dict, Any
 import re
 import time
 
-class HeladaPredictionService():
+class PredictionService():
     _cliente = None
 
     @classmethod
@@ -74,6 +73,17 @@ class HeladaPredictionService():
         # Probabilidad de que la helada ocurra después del día dado
         return 0.5*(1 - erf(z / sqrt(2)))
     
+    @staticmethod
+    def calcular_riesgos_plagas_sobre_datos(
+        datos_plagas : Optional[list[dict]]
+    ) -> Optional[list[dict]]:
+        """
+        Dado datos de plagas asociados a cultivos, almacenados en la base de datos, obtiene la predicción      
+        """
+
+
+        
+
     @staticmethod
     def calcular_nivel_riesgo_porcentaje(
         temperatura : float,
@@ -462,7 +472,7 @@ class HeladaPredictionService():
         cliente = cls._get_cliente()
 
         analisis_variedades = []
-        riesgos = HeladaPredictionService._recuento_riesgos()
+        riesgos = PredictionService._recuento_riesgos()
 
         for nombre_variedad in (variedades or []):
             # 1. Obtengo los umbrales de las variedades desde data-service
@@ -471,7 +481,7 @@ class HeladaPredictionService():
             )
 
             # 2. Determino el nivel de riesgo comparando temperatura con umbrales
-            nivel, umbral_activo = HeladaPredictionService._evaular_nivel_por_umbral(
+            nivel, umbral_activo = PredictionService._evaular_nivel_por_umbral(
                 temperatura = temperatura_minima,
                 umbrales = umbrales
             )
@@ -481,7 +491,7 @@ class HeladaPredictionService():
                 if umbral_activo else 'Sin etapa fenologica'
             )
 
-            porcentaje_riesgo = HeladaPredictionService.calcular_nivel_riesgo_porcentaje(
+            porcentaje_riesgo = PredictionService.calcular_nivel_riesgo_porcentaje(
                 temperatura = temperatura_minima,
                 humedad = None,
                 viento = None,
@@ -489,7 +499,7 @@ class HeladaPredictionService():
             )
 
             # 3. Genero las alertas especificas para esta variedad
-            alerta_evaluacion = HeladaPredictionService._generate_alerta_variedad(
+            alerta_evaluacion = PredictionService._generate_alerta_variedad(
                 evaluacion_variedades = {
                     'nivel_riesgo' : nivel,
                     'variedades':  nombre_variedad,
@@ -566,7 +576,7 @@ class HeladaPredictionService():
         :rtype: ResumenEvaluacionLocalidadDTO
         """
 
-        riesgos = HeladaPredictionService._recuento_riesgos()
+        riesgos = PredictionService._recuento_riesgos()
         lista_analisis = []
         nivel_riesgo = None
 
@@ -655,7 +665,7 @@ class HeladaPredictionService():
             riesgos[nivel_riesgo] += 1
 
             # Calcular porcentaje de riesgo
-            procentaje_riesgo = HeladaPredictionService.calcular_nivel_riesgo_porcentaje(
+            procentaje_riesgo = PredictionService.calcular_nivel_riesgo_porcentaje(
                 temperatura = temperatura_minima,
                 humedad = 70 if existencia_nieblas else 50,
                 viento = datos['datos'].get('rachas_viento', 0),
@@ -714,7 +724,7 @@ class HeladaPredictionService():
         :rtype: ResumenEvaluacionLocalidadDTO
         """
         
-        riesgos = HeladaPredictionService._recuento_riesgos()
+        riesgos = PredictionService._recuento_riesgos()
 
         lista_analisis = []
 
@@ -933,7 +943,7 @@ class HeladaPredictionService():
         """
 
         # 1. Obtención de datos calculados sobre temperaturas minimas
-        stats_temp = HeladaPredictionService._datos_historicos_calculados_temp(
+        stats_temp = PredictionService._datos_historicos_calculados_temp(
             datos = data
         )
 
@@ -944,7 +954,7 @@ class HeladaPredictionService():
         )
 
         # 2. Identificación sobre tipo de heladas
-        heladas_blancas_list, heladas_negras_list = HeladaPredictionService._riesgo_tipo_helada(
+        heladas_blancas_list, heladas_negras_list = PredictionService._riesgo_tipo_helada(
             datos = data
         )
 
@@ -969,16 +979,16 @@ class HeladaPredictionService():
                 )
 
         # 3. Calculo el nivel de riesgo y alerta sobre todos los datos historicos
-        riesgos_generales = HeladaPredictionService._determinar_nivel_riesgo(
+        riesgos_generales = PredictionService._determinar_nivel_riesgo(
             datos = data
         )
 
         # 4. Calculo probabilidad estadística de heladas tardías
         if stats_temp['fecha_temp_min_abs']:
-            dia_juliano_temp_min = HeladaPredictionService.dia_juliano(
+            dia_juliano_temp_min = PredictionService.dia_juliano(
                 fecha = stats_temp['fecha_temp_min_abs']
             )
-            prob_helada = HeladaPredictionService.prob_helada_posterior(
+            prob_helada = PredictionService.prob_helada_posterior(
                 dia = dia_juliano_temp_min,
                 media = Config.MEDIA_ULTIMA_HELADA,
                 desviacion = Config.DESVIACION_HELADA 
@@ -987,7 +997,7 @@ class HeladaPredictionService():
         # 5. Evaluación de variedades de cultivo
         evaluacion_variedades = None
         if incluir_evaluacion_variedades and stats_temp['temperatura_minima_absoluta']:
-            evaluacion_variedades = HeladaPredictionService._evaular_riesgo_variedades(
+            evaluacion_variedades = PredictionService._evaular_riesgo_variedades(
                 temperatura_minima = stats_temp['temperatura_minima_absoluta'],
                 mes = fecha_fin.month,
                 variedades = variedades
@@ -1258,21 +1268,21 @@ class HeladaPredictionService():
         #4. Comprobar si el usuario quiere realizar predicciones de heladas sobre localidades
         if incluir_evaluacion_localidad:
             if cota_nieve:
-                predicciones_localidad = HeladaPredictionService._evaluar_por_nieve(
+                predicciones_localidad = PredictionService._evaluar_por_nieve(
                     cota_nieve = cota_nieve,
                     localidades_disponibles = datos_localidades,
                     localidades_analizar = localidades,
                     localidades_prediccion = datos_futuros['datos'].get('temperatura_localidades')
                 )
             else:
-                predicciones_localidad = HeladaPredictionService._evaluar_sin_cota(
+                predicciones_localidad = PredictionService._evaluar_sin_cota(
                     datos = datos_futuros,
                     localidades_disponibles = datos_localidades,
                     localidades_analizar = localidades,
                     localidades_prediccion = datos_futuros['datos'].get('temperatura_localidades')
                 )
 
-            nivel_riesgo, alerta = HeladaPredictionService._nivel_riesgo_predictivo(
+            nivel_riesgo, alerta = PredictionService._nivel_riesgo_predictivo(
                 predicciones_localidad
             )
 
@@ -1283,23 +1293,23 @@ class HeladaPredictionService():
             # Entre todas las localidades con temperatura que arroja la 
             # predicción de dataservice, obtenemos la mínima
             # No tenemos las variedades asociados a localidades
-            temp_min_futura = HeladaPredictionService._temperatura_minima_futuros_calculada(
+            temp_min_futura = PredictionService._temperatura_minima_futuros_calculada(
                 temperaturas_localidades = datos_futuros['datos'].get('temperatura_localidades')
             )
 
             mes = datetime.strptime(datos_futuros['datos'].get('fecha_elaboracion'), "%Y-%m-%dT%H:%M:%S").month
-            predicciones_variedad = HeladaPredictionService._evaluar_riesgo_variedades(
+            predicciones_variedad = PredictionService._evaluar_riesgo_variedades(
                 temperatura_minima = temp_min_futura,
                 mes = mes,
                 variedades = variedades
             )
 
-            nivel_riesgo, alerta = HeladaPredictionService._nivel_riesgo_predictivo(
+            nivel_riesgo, alerta = PredictionService._nivel_riesgo_predictivo(
                 predicciones_variedad
             )
 
             if variedades and len(variedades) > 0:
-                nivel_riesgo_ajustado, alertas_actualizadas = HeladaPredictionService.aplicar_condiciones_horas_frio(
+                nivel_riesgo_ajustado, alertas_actualizadas = PredictionService.aplicar_condiciones_horas_frio(
                     variedades = variedades,
                     nivel_riesgo_actual = nivel_riesgo,
                     alertas = alertas
@@ -1333,6 +1343,48 @@ class HeladaPredictionService():
             evaluacion_localidades = predicciones_localidad
         )
     
+    @staticmethod
+    def _build_cultivo_plagas_calculadas(
+        datos : list[dict]
+    ) -> Optional[list[RiesgoPlagaCultivoDTO]]:
+        """
+        Convierte en DTOs de tipo RiesgoPlagaCultivoDTO todos los 
+        datos obtenidos por parámetros
+
+        :param datos: Lista de datos obtenidos
+        :type datos: list[dict]
+        :return: DTO cargado
+        :rtype: Optional[RiesgoPlagaCultivoDTO]
+        """
+
+        if not datos:
+            return None
+
+        lista_dtos = []
+        for dato in datos:
+            lista_dtos.append(
+                RiesgoPlagaCultivoDTO(
+                    cultivo = CultivoDTO(
+                        nombre = dato['cultivo'],
+                        grupo = dato['grupo']
+                    ),
+                    plagas = [
+                        PlagaDTO(
+                            nombre = p['nombre'],
+                            agente_causante = p['agente_causante'],
+                            momento_critico = p['momento_critico'],
+                            observaciones = p['observaciones'],
+                            mas_info = p['mas_info'],
+                            tipo = p['tipo'],
+                            nivel_riesgo = p['nivel_riesgo']
+                        )
+                        for p in dato['plagas']
+                    ]
+                )
+            )
+        
+        return lista_dtos
+
     @classmethod
     def listar_variedades_disponibles(
         cls
@@ -1409,7 +1461,7 @@ class HeladaPredictionService():
         if not datos:
             raise ValueError("No se pudieron obtener datos historicos sobre dataservice")
         else:
-            predicciones = HeladaPredictionService._build_observadas_predictions(
+            predicciones = PredictionService._build_observadas_predictions(
                 data = datos,
                 fecha_inicio = fecha_inicio,
                 fecha_fin = hoy,
@@ -1478,7 +1530,7 @@ class HeladaPredictionService():
         elif incluir_eval_localidad and not datos_localidad:
             raise ValueError("No se pudieron obtener datos de localidades sobre dataservice")
         else:
-            predicciones = HeladaPredictionService._build_futuras_predicciones(
+            predicciones = PredictionService._build_futuras_predicciones(
                 datos_futuros = datos_futuros,
                 datos_localidades = datos_localidad if datos_localidad else None,
                 incluir_evaluacion_localidad = True if incluir_eval_localidad else False,
@@ -1488,3 +1540,76 @@ class HeladaPredictionService():
             )
 
         return predicciones
+    
+
+    @classmethod
+    def obtener_prediccion_plagas_calculadas(
+        cls,
+        cultivos : list[str]
+    ):
+        """
+        Realiza el cálculo de predicción sobre riesgos de plagas, sobre datos proporcionados 
+        por data-service e itacyl. No necesita controlar variables climáticas porque la 
+        precisión ya calculada viene de los datos obtenidos.
+
+        :param cultivos: Lista de nombres de cultivos a predecir
+        :type cultivos: list[str]
+        """
+
+        if not cultivos:
+            return None
+        
+        cliente = cls._get_cliente()
+        data = cliente.get_cultivo_plaga_calendar(
+            nombres_cultivos = cultivos
+        )
+
+        # Obtención de la semana actual para construir la lógica del método
+        semana = datetime.today().isocalendar()[1] # Obtengo la semana que me devuelve la ISO 8601
+
+        # Obtención de los niveles de riesgos para la semana en la que nos encontramos
+        riesgos_plagas = []
+
+        for d in data:
+            plagas = d['plaga']
+            plagas_dict = {}
+            for p in plagas:
+                calendario = p['calendario']
+                objeto_riesgo = next((r for r in calendario if r['semana'] == semana), None)
+
+                riesgo = objeto_riesgo['nivel_alerta']
+
+                if 0 <= riesgo < 50:
+                    importancia = 'BAJA'
+                elif 50 <= riesgo < 75:
+                    importancia = 'MEDIA'
+                else:
+                    importancia = 'ALTA'
+
+                if p['public_id'] not in plagas_dict:
+                    plagas_dict[p['public_id']] = {
+                        'nombre' : p['nombre'],
+                        'agente_causante' : p['agente_causante'],
+                        'momento_critico' : p['momento_critico'],
+                        'observaciones' : p['observaciones'],
+                        'mas_info' : p['mas_info'],
+                        'tipo' : p['tipo'],
+                        'nivel_riesgo' : importancia 
+                    }
+
+            riesgos_plagas.append(
+                {
+                    'cultivo' : d['cultivo']['nombre'],
+                    'grupo' : d['cultivo']['grupo'],
+                    'plagas' : list(plagas_dict.values())
+                }
+            )
+
+        predicciones_plagas = PredictionService._build_cultivo_plagas_calculadas(
+            datos = riesgos_plagas
+        )
+
+        if not predicciones_plagas:
+            return None
+        
+        return predicciones_plagas
