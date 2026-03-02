@@ -7,6 +7,7 @@ from flask import current_app
 from typing import Dict, Any
 import re
 import time
+import os
 
 class PredictionService():
     _cliente = None
@@ -37,6 +38,31 @@ class PredictionService():
             "debil" : 0,
             "sin_riesgo" : 0
         }
+    
+    @staticmethod
+    def log_alertas(
+        datos : list[dict]
+    ):
+        """
+        Almacena logs de alertas producidas en las predicciones
+        """
+        try:
+            BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+            file_path = os.path.join(BASE_DIR, "..", "logs", "alertas_salida.json")
+
+            with open(file_path, 'w', encoding = "utf-8") as f:
+                for dato in datos:
+                    f.write(
+                        {
+                            'mensaje' : dato.get('mensaje', ''),
+                            'recomendacion' : dato.get('recomendacion', ''),
+                            'nivel' : dato.get('nivel'),
+                            'timestamp' : datetime.today()
+                        }
+                    )
+        except Exception as e:
+            print(f"Ha ocurrido un error con el log de alertas : {e}")
+            return
 
     @staticmethod
     def dia_juliano(fecha : date) -> int:
@@ -1028,6 +1054,11 @@ class PredictionService():
             fecha_generacion = datetime.now()
         )
 
+        # Almaceno las alertas producidas en la prediccion en un log
+        PredictionService.log_alertas(
+            datos = riesgos_generales['alertas']
+        )
+
         # 7. Construcción de DTO final
         return RiesgoHeladaObservadaDTO(
             nivel = riesgos_generales['nivel'],
@@ -1328,7 +1359,12 @@ class PredictionService():
             fecha_generacion = datetime.now()
         )
 
-        #6. Creación del DTO resultante
+        #6. Almacenar las alertas en el log
+        PredictionService.log_alertas(
+            datos = alertas
+        )
+
+        #7. Creación del DTO resultante
         return RiesgoHeladaFuturaDTO(
             nivel = nivel_riesgo,
             comentarios = comentarios,
