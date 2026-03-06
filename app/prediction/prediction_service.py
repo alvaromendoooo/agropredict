@@ -8,6 +8,7 @@ from typing import Dict, Any
 import re
 import time
 import os
+import json
 
 class PredictionService():
     _cliente = None
@@ -53,12 +54,16 @@ class PredictionService():
             with open(file_path, 'w', encoding = "utf-8") as f:
                 for dato in datos:
                     f.write(
-                        {
-                            'mensaje' : dato.get('mensaje', ''),
-                            'recomendacion' : dato.get('recomendacion', ''),
-                            'nivel' : dato.get('nivel'),
-                            'timestamp' : datetime.today()
-                        }
+                        json.dumps(
+                            {
+                                'mensaje' : dato.mensaje,
+                                'recomendacion' : dato.recomendacion,
+                                'nivel' : dato.nivel,
+                                'timestamp' : str(datetime.today())
+                            },
+                            indent = 4,
+                            ensure_ascii = False
+                        )
                     )
         except Exception as e:
             print(f"Ha ocurrido un error con el log de alertas : {e}")
@@ -115,7 +120,7 @@ class PredictionService():
         temperatura : float,
         humedad : Optional[float], 
         viento : Optional[float],
-        prob_heladad : Optional[float] 
+        prob_heladas : Optional[float] 
     ) -> float:
         """
         Calcula el nivel de riesgo de helada en porcentaje en base a múltiples factores
@@ -137,8 +142,8 @@ class PredictionService():
             nivel_base += 5
 
         # Factor probabilidad de helada si está disponible (30%)
-        if prob_heladad is not None:
-            nivel_base += prob_heladad * 30
+        if prob_heladas is not None:
+            nivel_base += prob_heladas * 30
         
         # Factor humedad para heladas blancas (10%)
         if humedad is not None:
@@ -240,7 +245,7 @@ class PredictionService():
         for dato in datos.get('datos', []):
             temp_min = dato.get('tempMin')
             humedad_media = dato.get('humedadMedia')
-            if (temp_min or humedad_media) is None:
+            if temp_min is None or humedad_media is None:
                 continue
 
             # Riesgo de helada blanca cuando hay mucho frio y humedad
@@ -301,8 +306,8 @@ class PredictionService():
             temp_min = dia.get('tempMin')
             if temp_min is not None and temp_min < temp_min_reciente:
                 temp_min_reciente = temp_min
-                humedad_min_reciente = dato.get('humedadMin')
-                precipitacion_reciente = dato.get('precipitacion', 0)
+                humedad_min_reciente = dia.get('humedadMin')
+                precipitacion_reciente = dia.get('precipitacion', 0)
 
         # Evaluacion de condiciones
         # 1. Precipitaciones recientes reducen riesgo de heladas
@@ -351,6 +356,11 @@ class PredictionService():
                         nivel = TipoAlerta.INFORMATIVA.value
                     )
                 ]
+            }
+        else:
+            return {
+                "nivel" : NivelHelada.SIN_RIESGO.value,
+                "alertas" : []
             }
             
     @staticmethod
@@ -459,7 +469,7 @@ class PredictionService():
                 nivel = 'critico'
                 umbral_activo = umbral
                 break # Nivel maximo, no hace falta seguir
-            elif alto is not None and temperatura <= critico:
+            elif alto is not None and temperatura <= alto:
                 if nivel in ('sin_riesgo', 'debil', 'moderado'):
                     nivel = 'alto'
                     umbral_activo = umbral
@@ -478,7 +488,7 @@ class PredictionService():
     def _evaluar_riesgo_variedades(
         cls, 
         temperatura_minima : float,
-        mes : int,
+        dia : int,
         variedades : Optional[list[str]] = None
     ) -> ResumenCultivoDTO:
         """
@@ -487,8 +497,8 @@ class PredictionService():
 
         :param temperatura_minima: Temperatura minima a evaluar
         :type temperatura_minima: float
-        :param mes: Mes del año (1-12), reservado para lógica futura de etapa fenologica
-        :type mes: int
+        :param dia: Dia que se usa para obtener la probabilidad de riesgo de helada posterior
+        :type dia: int
         :param variedades: Lista de variedades a analizar
         :type variedades: Optional[list[str]]
         :return: DTO con resumen de variedades analizadas
@@ -517,11 +527,17 @@ class PredictionService():
                 if umbral_activo else 'Sin etapa fenologica'
             )
 
+            prob_helada = PredictionService.prob_helada_posterior(
+                dia = dia,
+                media = Config.MEDIA_ULTIMA_HELADA,
+                desviacion = Config.DESVIACION_HELADA
+            )
+
             porcentaje_riesgo = PredictionService.calcular_nivel_riesgo_porcentaje(
                 temperatura = temperatura_minima,
                 humedad = None,
                 viento = None,
-                prob_heladad = 0.25
+                prob_heladas = prob_helada
             )
 
             # 3. Genero las alertas especificas para esta variedad
@@ -530,7 +546,7 @@ class PredictionService():
                     'nivel_riesgo' : nivel,
                     'variedades':  nombre_variedad,
                     'etapa_fenologica' : etapa_nombre,
-                    'temepratura' : temperatura_minima,
+                    'temperatura' : temperatura_minima,
                     'porcentaje_riesgo' : porcentaje_riesgo
                 }
             )
@@ -647,7 +663,7 @@ class PredictionService():
             score = 0
 
             # Análisis de temperatura
-            if temperatura_minima <= 0.0: # No necesita más factores para considerar riesgo crítico de heladas
+            if temperatura_minima < 0.0: # No necesita más factores para considerar riesgo crítico de heladas
                 score += 4
                 recomendaciones.append("Temperaturas minimas bajo cero previstas. Altas probabilidades de heladas")
             elif temperatura_minima == 0.0:
@@ -695,7 +711,7 @@ class PredictionService():
                 temperatura = temperatura_minima,
                 humedad = 70 if existencia_nieblas else 50,
                 viento = datos['datos'].get('rachas_viento', 0),
-                prob_heladad = None
+                prob_heladas = None
             )
 
             lista_analisis.append(
@@ -799,14 +815,14 @@ class PredictionService():
                 # No conocemos las temperaturas minimas dentro de la cota
                 # Asumimos riesgo moderado si hay descenso
                 if cota_nieve.hay_descenso:
-                    riesgos['moderado'] += 1
-                    nivel_riesgo = 'moderado'
+                    riesgos['critico'] += 1
+                    nivel_riesgo = 'critico'
                     recomendaciones.append(
                         f"La cota de nieve esta en descenso y la localidad {localidad['nombre']} se encuentra dentro del rango de altitud afectado."
                     )
                 else:
-                    riesgos['critico'] += 1
-                    nivel_riesgo = 'critico'
+                    riesgos['moderado'] += 1
+                    nivel_riesgo = 'moderado'
                     recomendaciones.append(
                         f"La localidad {localidad['nombre']} se encuentra dentro del rango de cota de nieve previsto."
                     )
@@ -838,7 +854,6 @@ class PredictionService():
                     nivel_riesgo = 'sin_riesgo'
 
 
-            # Creación del DTO sobre el analisis realizado por localidad y cota de nieve
             lista_analisis.append(
                 AnalisisLocalidadDTO(
                     localidad=localidad['nombre'],
@@ -1010,6 +1025,7 @@ class PredictionService():
         )
 
         # 4. Calculo probabilidad estadística de heladas tardías
+        prob_helada = 0.0
         if stats_temp['fecha_temp_min_abs']:
             dia_juliano_temp_min = PredictionService.dia_juliano(
                 fecha = stats_temp['fecha_temp_min_abs']
@@ -1038,7 +1054,8 @@ class PredictionService():
         if stats_temp['temperatura_minima_absoluta'] is not None:
             comentarios += f"Temperatura minima registrada: {stats_temp['temperatura_minima_absoluta']:.1f}C. "
         
-        if prob_helada > 0:
+        # Se indica si o si la probabilidad obtenida de heladas, independientemente de que sea 0
+        if prob_helada > 0.0 or prob_helada == 0:
             comentarios += f"Probabilidad estadistica de helada tardia: {prob_helada}. "
         
         comentarios += (
@@ -1328,10 +1345,10 @@ class PredictionService():
                 temperaturas_localidades = datos_futuros['datos'].get('temperatura_localidades')
             )
 
-            mes = datetime.strptime(datos_futuros['datos'].get('fecha_elaboracion'), "%Y-%m-%dT%H:%M:%S").month
+            dia = datetime.strptime(datos_futuros['datos'].get('fecha_elaboracion'), "%Y-%m-%dT%H:%M:%S").day
             predicciones_variedad = PredictionService._evaluar_riesgo_variedades(
                 temperatura_minima = temp_min_futura,
-                mes = mes,
+                dia = dia,
                 variedades = variedades
             )
 
