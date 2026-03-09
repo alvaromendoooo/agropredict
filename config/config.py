@@ -10,6 +10,7 @@ class Config():
     DATA_SERVICE_FORECAST_BASE_URL = os.getenv('DATA_SERVICE_FORECAST_BASE_URL')
     DATA_SERVICE_CROP_BASE_URL = os.getenv('DATA_SERVICE_CROP_BASE_URL')
     DATA_SERVICE_SENSORES_BASE_URL = os.getenv('DATA_SERVICE_SENSORES_BASE_URL')
+    DATA_SERVICE_CULTIVOS_BASE_URL = os.getenv('DATA_SERVICE_CULTIVOS_BASE_URL')
 
     """
         Debido a que el sistema se encuentra en un entorno de desarrollo 

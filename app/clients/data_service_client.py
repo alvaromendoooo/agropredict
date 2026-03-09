@@ -17,7 +17,8 @@ class DataServiceClient(BaseClient):
         self.base_forecast_url = app.config.get('DATA_SERVICE_FORECAST_BASE_URL')
         self.base_crop_url = app.config.get('DATA_SERVICE_CROP_BASE_URL')
         self.base_plaga_url = app.config.get('DATA_SERVICE_PLAGAS_URL')
-        self.base_sensores_url = app.config.get('DATA_SERVICE_SENSORES_URL')
+        self.base_sensores_url = app.config.get('DATA_SERVICE_SENSORES_BASE_URL')
+        self.base_cultivos = app.config.get('DATA_SERVICE_CULTIVOS_BASE_URL')
 
     @circuit(cls = CircuitBreakerPersonalizado)
     def get_historic_data_day(
@@ -140,6 +141,9 @@ class DataServiceClient(BaseClient):
                 method = 'GET',
                 url = url
             )
+
+            # Espero a que los datos estén READY
+            time.sleep(2)
 
             return response.json()
         except Exception as e:
@@ -306,7 +310,7 @@ class DataServiceClient(BaseClient):
             print(f"Fallo obteniendo datos sobre plagas: {e}")
             return None
     
-    @circuit
+    @circuit(cls = CircuitBreakerPersonalizado)
     def get_cultivo_plaga_calendar(
         self,
         nombres_cultivos : list[str]
@@ -334,7 +338,34 @@ class DataServiceClient(BaseClient):
             print(f"Fallo obteniendo datos sobre cultivo_plagas : {e}")
             return None
 
-    @circuit
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_datos_cultivos(
+        self
+    ):
+        try:
+            url = f"{self.base_cultivos}"
+
+            response = self._make_request(
+                method = 'GET',
+                url = url
+            )
+
+            if response.status_code == 404:
+                logger.error("No se han encontrado datos de sensores sobre los parámetros indicados")
+                return None
+            if response.status_code >= 500:
+                logger.error("Se ha producido un error por parte de data-service")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            logger.error(f"Se ha producido un error al obtener datos de cultivos sobre data-service : {e}")
+            return None
+
+    @circuit(cls = CircuitBreakerPersonalizado)
     def get_datos_sensores(
         self, 
         eui : str,

@@ -1,5 +1,6 @@
 from config.config import Config
 from .prediction_dto import *
+from .predictor_plagas import PredictorPlagas
 from typing import Optional, Union
 from datetime import date, timedelta
 from math import erf, sqrt
@@ -292,7 +293,7 @@ class PredictionService():
 
         if not dias_recientes:
             return {
-                "nivel" : NivelHelada.SIN_RIESGO.value,
+                "nivel" : NivelRiesgo.SIN_RIESGO.value,
                 "alertas" : []
             }
 
@@ -313,7 +314,7 @@ class PredictionService():
         # 1. Precipitaciones recientes reducen riesgo de heladas
         if precipitacion_reciente >= 10 and humedad_min_reciente and humedad_min_reciente >= 70:
             return {
-                "nivel" : NivelHelada.SIN_RIESGO.value,
+                "nivel" : NivelRiesgo.SIN_RIESGO.value,
                 "alertas" : [
                     AlertaDTO(
                         mensaje = "Precipitaciones recientes reducen el riesgo de heladas",
@@ -326,7 +327,7 @@ class PredictionService():
         # 2. Evaluación por temperatura
         if temp_min <= 0:
             return {
-                "nivel" : NivelHelada.FUERTE.value,
+                "nivel" : NivelRiesgo.FUERTE.value,
                 "alertas" : [
                     AlertaDTO(
                         mensaje = f"Temperaturas minimas de {temp_min}C detectado. Riesgo fuerte de riesgo de heladas",
@@ -337,7 +338,7 @@ class PredictionService():
             }
         elif temp_min <= 1.6:
             return {
-                "nivel" : NivelHelada.MODERADA.value,
+                "nivel" : NivelRiesgo.MODERADA.value,
                 "alertas" : [
                     AlertaDTO(
                         mensaje = f"Temperaturas minimas de {temp_min}C detectado. Riesgo moderado de heladas",
@@ -348,7 +349,7 @@ class PredictionService():
             }
         elif temp_min <= 3.0:
             return {
-                "nivel" : NivelHelada.DEBIL.value,
+                "nivel" : NivelRiesgo.DEBIL.value,
                 "alertas" : [
                     AlertaDTO(
                         mensaje = f"Temperaturas minimas de {temp_min}C detectado. Riesgo debil de heladas",
@@ -359,7 +360,7 @@ class PredictionService():
             }
         else:
             return {
-                "nivel" : NivelHelada.SIN_RIESGO.value,
+                "nivel" : NivelRiesgo.SIN_RIESGO.value,
                 "alertas" : []
             }
             
@@ -886,10 +887,10 @@ class PredictionService():
     @staticmethod
     def _nivel_riesgo_predictivo(
         prediccion
-    ) -> Union[NivelHelada, AlertaDTO]:
+    ) -> Union[NivelRiesgo, AlertaDTO]:
         if isinstance(prediccion, ResumenEvaluacionLocalidadDTO):
             if prediccion.localidades_riesgo_critico > 0:
-                return NivelHelada.FUERTE, AlertaDTO(
+                return NivelRiesgo.FUERTE, AlertaDTO(
                     mensaje = "Riesgo crítico de heladas en las próximas horas.",
                     recomendacion = (
                         "Posibles temperaturas bajo cero con impacto significativo. "
@@ -899,7 +900,7 @@ class PredictionService():
                     nivel = TipoAlerta.CRITICA
                 )
             elif prediccion.localidades_riesgo_alto > 0:
-                return NivelHelada.MODERADA, AlertaDTO(
+                return NivelRiesgo.MODERADA, AlertaDTO(
                     mensaje = "Alta probabilidad de heladas localizadas.",
                     recomendacion = (
                         "Posible formación de placas de hielo en zonas elevadas y umbrías. "
@@ -908,7 +909,7 @@ class PredictionService():
                     nivel = TipoAlerta.ALTA
                 )
             elif prediccion.localidades_riesgo_moderado > 0:
-                return NivelHelada.DEBIL, AlertaDTO(
+                return NivelRiesgo.DEBIL, AlertaDTO(
                     mensaje = "Probabilidad moderada de heladas débiles.",
                     recomendacion = (
                         "Heladas puntuales en zonas rurales o de mayor altitud. "
@@ -917,7 +918,7 @@ class PredictionService():
                     nivel = TipoAlerta.MEDIA
                 )
             else:
-                return NivelHelada.SIN_RIESGO, AlertaDTO(
+                return NivelRiesgo.SIN_RIESGO, AlertaDTO(
                     mensaje = "Sin riesgo significativo de heladas.",
                     recomendacion = "No se requieren medidas especiales.",
                     nivel = TipoAlerta.INFORMATIVA
@@ -925,7 +926,7 @@ class PredictionService():
 
         elif isinstance(prediccion, ResumenCultivoDTO):
             if prediccion.variedades_en_riesgo_critico > 0:
-                return NivelHelada.FUERTE, AlertaDTO(
+                return NivelRiesgo.FUERTE, AlertaDTO(
                     mensaje = "Riesgo crítico de daños por helada en cultivos sensibles.",
                     recomendacion = (
                         "Se recomienda activar medidas de protección: riego antihelada, "
@@ -935,7 +936,7 @@ class PredictionService():
                     nivel = TipoAlerta.CRITICA
                 )
             elif prediccion.variedades_en_riesgo_alto > 0:
-                return NivelHelada.MODERADA, AlertaDTO(
+                return NivelRiesgo.MODERADA, AlertaDTO(
                     mensaje = "Riesgo elevado de estrés térmico en cultivos.",
                     recomendacion = (
                         "Monitorizar temperaturas nocturnas y preparar sistemas de protección "
@@ -944,7 +945,7 @@ class PredictionService():
                     nivel = TipoAlerta.PREVENTIVA
                 )
             elif prediccion.variedades_en_riesgo_moderado > 0:
-                return NivelHelada.DEBIL, AlertaDTO(
+                return NivelRiesgo.DEBIL, AlertaDTO(
                     mensaje = "Riesgo leve de helada en algunos cultivos.",
                     recomendacion = (
                         "No se esperan daños generalizados, pero conviene vigilar "
@@ -953,7 +954,7 @@ class PredictionService():
                     nivel = TipoAlerta.INFORMATIVA
                 )
             else:
-                return NivelHelada.SIN_RIESGO, AlertaDTO(
+                return NivelRiesgo.SIN_RIESGO, AlertaDTO(
                     mensaje = "Condiciones térmicas favorables para los cultivos.",
                     recomendacion = "No se prevén daños por helada.",
                     nivel = TipoAlerta.INFORMATIVA
@@ -1095,7 +1096,7 @@ class PredictionService():
     def aplicar_condiciones_horas_frio(
         cls,
         variedades : list[str],
-        nivel_riesgo_actual : NivelHelada,
+        nivel_riesgo_actual : NivelRiesgo,
         alertas : list
     ) -> tuple:
         """
@@ -1116,20 +1117,20 @@ class PredictionService():
         :param variedades: Nombres de variedades a consultar
         :type variedades: list[str]
         :param nivel_riesgo_actual: Nivel de riesgo calculado antes de este condicionante
-        :type nivel_riesgo_actual: NivelHelada
+        :type nivel_riesgo_actual: NivelRiesgo
         :param alertas: Lista de alertas acumuladas hasta ahora (se añaden in-place)
         :type alertas: list
-        :return: Tupla (nivel_riesgo_final: NivelHelada, alertas: list)
+        :return: Tupla (nivel_riesgo_final: NivelRiesgo, alertas: list)
         :rtype: tuple
         """
         client = cls._get_cliente()
 
         # Escala ordinal para poder hacer aritmética de niveles
         escala = [
-            NivelHelada.SIN_RIESGO,
-            NivelHelada.DEBIL,
-            NivelHelada.MODERADA,
-            NivelHelada.FUERTE
+            NivelRiesgo.SIN_RIESGO,
+            NivelRiesgo.DEBIL,
+            NivelRiesgo.MODERADA,
+            NivelRiesgo.FUERTE
         ]
 
         max_escalado = 0  # Máximo número de niveles a subir por horas de frío
@@ -1666,3 +1667,79 @@ class PredictionService():
             return None
         
         return predicciones_plagas
+    
+
+    @classmethod
+    def obtener_prediccion_plagas_estimadas(
+        cls,
+        cultivos : list[str],
+        province_code : Optional[str],
+        ccaa_code : Optional[str],
+        zona : str,
+        fecha_inicio : datetime,
+        fecha_fin : datetime
+    ):
+        """
+        Utiliza los datos de sensores y meteorológicos para obtener una 
+        prediccion estimada de riesgo antes plagas sobre cultivos cuyo 
+        que no tienen asociados un calendario de plagas.
+
+        Los leguminosos y los cereales si que almacenan el calendario.
+        """
+
+        try:
+            if not cultivos:
+                return
+            
+            cliente = cls._get_cliente()
+
+            # Almacena de clave los nombres de distinct cultivos parametrizados y de valor la lista de valores obtenidas por los sensores
+            sensores_por_eui = {}
+
+            # Almacena la información de los cultivos cuyos nombres coincidan con los pasafos por parámetros 
+            datos_cultivos_parametrizados = []
+            
+            # Llamadas a la API de data-service para obtener sus datos
+            datos_meteorologicos = cliente.get_future_data(
+                province_code = province_code,
+                ccaa_code = ccaa_code,
+                zona = zona,
+                prediccion = "tomorrow"
+            )
+             
+            datos_cultivos = cliente.get_datos_cultivos()
+
+            for dato in datos_cultivos:
+                for cultivo in cultivos:
+                    nombre_cultivo = cultivo.capitalize()
+                    if nombre_cultivo in dato['nombre']:
+                        datos_cultivos_parametrizados.append(dato)
+                        if nombre_cultivo not in sensores_por_eui:
+                            eui = dato['sensor']
+                            sensores_por_eui[eui] = []
+                            datos_sensores_cultivo = cliente.get_datos_sensores(
+                                eui = eui,
+                                fecha_inicio = date(2025,2,20), # Hardocded for tests
+                                fecha_fin = date(2025,2,27) # Harcoded for tests
+                            )
+
+                            if not datos_sensores_cultivo:
+                                continue
+
+                            sensores_por_eui[eui] = datos_sensores_cultivo[eui]
+
+            predicciones = PredictorPlagas.prediccion_plagas_predecibles(
+                cultivos = datos_cultivos_parametrizados,
+                sensores_por_eui = sensores_por_eui,
+                prediccion_meteorologica = datos_meteorologicos
+            )
+
+            if not predicciones:
+                return
+
+            return predicciones
+        
+        except Exception as e:
+            print(f"Error al obtener datos predictivos estimados sobre los cultivos : {cultivos} - {e}")
+            return
+

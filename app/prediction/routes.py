@@ -11,6 +11,7 @@ from ..threading.thread_task import(
     generar_informe_plagas_background
 )
 from flask import request, current_app
+from datetime import datetime, date
 
 logger = logging.getLogger(__name__)
 
@@ -281,3 +282,68 @@ def prediccion_plagas_calculadas():
                 'error' : 'Internal Server Error'
             }
         )
+
+@plagas_bp.route('/plagas/estimadas/<string:zona>/<string:fecha_ini>/<string:fecha_fin>', methods = ['GET'])
+@log('../logs/fichero_salida.json')
+def prediccion_plagas_estimadas(
+    zona : str,
+    fecha_ini : str,
+    fecha_fin : str
+):
+    try:
+        # Obtener parámetros de la query
+        cultivos = request.args.getlist('cultivos')
+        ccaa_code = request.args.get('ccaa')
+        province_code = request.args.get('provincia')
+
+        if province_code and ccaa_code:
+            return jsonify(
+                {
+                    'success' : 'false',
+                    'code' : '400',
+                    'message' : 'Invalid Parameters',
+                    'error' : 'Solo se debe indicar una de los dos identificadores, el de las provincias (provincia) o el de las comunidades autonomas (ccaa)'
+                }
+            ), 400
+        
+        if not all([zona, fecha_ini, fecha_fin, cultivos]):
+            return jsonify(
+                {
+                    'success' : 'false',
+                    'status' : '400',
+                    'message' : 'Invalid Parameters',
+                    'error' : 'Se deben especificar los parámetros obligatorios indicados en la especificación del endpoint'
+                }
+            ), 400
+        
+        datos = PredictionService.obtener_prediccion_plagas_estimadas(
+            cultivos = cultivos,
+            province_code = province_code if province_code else None,
+            ccaa_code = ccaa_code if ccaa_code else None,
+            zona = zona,
+            fecha_inicio = datetime.strptime(fecha_ini, '%Y-%m-%d').date(),
+            fecha_fin = datetime.strptime(fecha_fin, '%Y-%m-%d').date()
+        )
+
+        if not datos:
+            return jsonify(
+                {
+                    'success' : 'false',
+                    'status' : '404',
+                    'message' : 'Data Not Found',
+                    'error' : 'No se han obtenido datos de predicciones estimadas sobre riesgos de plagas'
+                }
+            )
+        
+        return dataclass_to_json(datos)
+
+    except APIException as e:
+        logger.error(f"Error inesperado en prediccion_plagas_calculadas : {e}")
+        return jsonify(
+            {
+                'message' : 'Error interno del servidor',
+                'status' : 500,
+                'error' : 'Internal Server Error'
+            }
+        )
+
