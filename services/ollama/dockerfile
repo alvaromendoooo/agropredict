@@ -12,5 +12,5 @@ COPY ./scripts/preload-model.sh /preload-model.sh
 RUN chmod +x /preload-model.sh
 
 # Ejecución de ollama
-ENTRYPOINT ["/bin/sh", "-c"]
-CMD ["/preload-model.sh"]
+ENTRYPOINT []
+CMD ["/bin/sh", "/preload-model.sh"]
