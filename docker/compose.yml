@@ -154,6 +154,8 @@ services:
       - .env
     ports: 
       - "9002:5000"
+    profiles:
+      - servicio-datos
     depends_on:
       - mariadb
       - cache
