@@ -1,0 +1,91 @@
+name: agro-predict
+
+services:
+  mariadb:
+    image: mariadb:10.11
+    container_name: agro-predict-db
+    environment:
+        MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+        MYSQL_DATABASE: ${MYSQL_DATABASE}
+        MYSQL_USER: ${MYSQL_USER}
+        MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3307:3306"
+    volumes:
+        - mariadb_data:/var/lib/mysql 
+    restart: unless-stopped
+    healthcheck:
+        test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+        start_period: 20s  
+
+  cache:
+    image: redis:7.4-alpine
+    container_name: agro-predict-cache
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASS} # Almacena datos cada 20 seg, solo muestra warnings
+    volumes:
+      - cache:/data
+
+  aemet-service:
+    image: mendo1/agro-predict:aemet-service-1.0
+    container_name: aemet-service
+    environment:
+      - AEMET_API_KEY=${AEMET_API_KEY}
+      - AEMET_BASE_URL=${AEMET_BASE_URL}
+      - PORT=4000
+    env_file: .env
+    volumes:
+      - aemet-data:/app/private/aemet
+    ports: 
+      - "4000:4000"
+    restart: unless-stopped
+
+  siar-service:
+    image: mendo1/agro-predict:siar-service-1.0
+    container_name: siar-service
+    environment:
+      - SIAR_API_KEY=${SIAR_API_KEY}
+    env_file: .env
+    ports:
+      - "8086:8086"
+    restart: unless-stopped
+  
+  itacyl-service:
+    image: mendo1/agro-predict:itacyl-service
+    container_name: itacyl-service
+    environment:
+      - ITACyL_API_KEY=${ITACyL_API_KEY}
+    env_file:
+      - .env
+    ports:
+      - "8087:8087"
+    restart: unless-stopped
+
+  data-service:
+    image: mendo1/agro-predict:data-service-0.1
+    container_name: data-service
+    env_file:
+      - .env
+    ports: 
+      - "9002:5000"
+    profiles:
+      - servicio-datos
+    depends_on:
+      - mariadb
+      - cache
+      - aemet-service
+      - siar-service
+      - itacyl-service
+    restart: unless-stopped
+  
+volumes:
+  mariadb_data:
+  aemet-data:
+    driver: local
+  cache:
+    driver: local
