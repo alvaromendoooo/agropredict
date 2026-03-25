@@ -1040,9 +1040,9 @@ class PredictionService():
         # 5. Evaluación de variedades de cultivo
         evaluacion_variedades = None
         if incluir_evaluacion_variedades and stats_temp['temperatura_minima_absoluta']:
-            evaluacion_variedades = PredictionService._evaular_riesgo_variedades(
+            evaluacion_variedades = PredictionService._evaluar_riesgo_variedades(
                 temperatura_minima = stats_temp['temperatura_minima_absoluta'],
-                mes = fecha_fin.month,
+                dia = fecha_fin.day,
                 variedades = variedades
             )
 
@@ -1455,8 +1455,8 @@ class PredictionService():
         if not datos:
             return []
 
-        return [v.get('nombre', '').strip().lower() for v in datos if v.get('nombre')] 
-       
+        return datos
+
     @classmethod
     def listar_localidades_disponibles(cls) -> list[str]:
         """

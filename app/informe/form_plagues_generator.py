@@ -234,7 +234,7 @@ class InformePlagaService:
         
         directorio = Path(__file__).resolve().parent
         directorio.mkdir(parents = True, exist_ok = True)
-        ruta_pdf = directorio / NOMBRE_ARCHIVO
+        ruta_pdf = directorio / 'reports' / NOMBRE_ARCHIVO
 
         # Generación del PDF
         doc = SimpleDocTemplate(

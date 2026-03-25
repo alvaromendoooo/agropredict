@@ -123,7 +123,7 @@ def listar_variedades():
 
         return jsonify({
             'total' : len(variedades_disponibles),
-            'cultivos' : variedades_disponibles,
+            'cultivos_variedades' : variedades_disponibles,
             'mensaje' : 'Use este nombre en el parametro "variedades" sobre los demas endpoints para filtrar la evaluacion de riesgo de helada en variedades especificas'
         }), 200
     
@@ -147,8 +147,8 @@ def prediccion_heladas_futuras(
         ccaaId = request.args.get('ccaaId')
         incluir_evaluacion_variedad = request.args.get('evaluacion_var', 'false').lower()
         incluir_evaluacion_localidad = request.args.get('evaluacion_loc', 'false').lower()
-        variedades = request.args.get('variedades')
-        localidades = request.args.get('localidades')
+        variedades = request.args.getlist('variedades')
+        localidades = request.args.getlist('localidades')
 
 
         if not zona:
@@ -168,12 +168,16 @@ def prediccion_heladas_futuras(
         incluir_variedades = incluir_evaluacion_variedad in ['true', '1', 'yes', 'si']
         variedades_lista = None
         if variedades:
-            variedades_lista = [v.strip().lower() for v in variedades.split(',')]
+            variedades_lista = [v.strip().lower() for v in variedades]
             variedades_disponibles = PredictionService.listar_variedades_disponibles()
+
+            nombres_disponibles = [v['nombre'].lower() for v in variedades_disponibles]
+
+            print(f"Variedades disn")
             for v in variedades_lista:
-                if v not in variedades_disponibles:
+                if v not in nombres_disponibles:
                     raise APIException(
-                        message = f"Variedades de cultivo no reconocidos: {', '.join(v)}",
+                        message = f"Variedades de cultivo no reconocidos: {', '.join(variedades_lista)}",
                         status = 400,
                         error = 'Invalid corp params'
                     )
@@ -181,7 +185,7 @@ def prediccion_heladas_futuras(
         incluir_localidades = incluir_evaluacion_localidad in ['true', '1', 'yes', 'si']
         localidad_lista = None
         if localidades:
-            localidad_lista = [l.strip().lower() for l in localidades.split(',')]
+            localidad_lista = [l.strip().lower() for l in localidades]
             localidades_disponibles = PredictionService.listar_localidades_disponibles()
             for l in localidad_lista:
                 if l not in localidades_disponibles:

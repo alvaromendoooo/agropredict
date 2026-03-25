@@ -1,11 +1,11 @@
 {
-    "mensaje": "La variedad 'lauranne' ha completado su requerimiento de horas de fr\u00edo (682.5 / 190). AVISO: se han superado las 200 horas m\u00e1ximas recomendadas (682.5 acumuladas). Posible vernalizaci\u00f3n excesiva.",
-    "recomendacion": "Consultar con el t\u00e9cnico agron\u00f3mico sobre el impacto de la vernalizaci\u00f3n excesiva.",
+    "mensaje": "La variedad 'lauranne' ha completado su requerimiento de horas de frío (682.5 / 190). AVISO: se han superado las 200 horas máximas recomendadas (682.5 acumuladas). Posible vernalización excesiva.",
+    "recomendacion": "Consultar con el técnico agronómico sobre el impacto de la vernalización excesiva.",
     "nivel": "preventiva",
-    "timestamp": "2026-03-06 12:27:06.306574"
+    "timestamp": "2026-03-25 19:22:33.903775"
 }{
     "mensaje": "Riesgo leve de helada en algunos cultivos.",
-    "recomendacion": "No se esperan da\u00f1os generalizados, pero conviene vigilar cultivos tempranos o en fase de brotaci\u00f3n.",
+    "recomendacion": "No se esperan daños generalizados, pero conviene vigilar cultivos tempranos o en fase de brotación.",
     "nivel": "informativa",
-    "timestamp": "2026-03-06 12:27:06.306621"
+    "timestamp": "2026-03-25 19:22:33.903832"
 }

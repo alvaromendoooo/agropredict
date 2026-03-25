@@ -155,10 +155,6 @@ class InformeHeladaService():
         lc.valueAxis.valueMax = 100
         lc.valueAxis.valueSteps = [5, 15, 25, 50, 75, 100]
 
-        # Configurar líneas
-        """for i, line in enumerate(lc.lines):
-            line.strokeWidth = 2 if i == 0 else 1.5
-            line.symbol = makeMarker('Circle')  # Siempre dibuja un punto también"""
 
         from reportlab.graphics.charts.legends import LineLegend
 
@@ -343,7 +339,7 @@ class InformeHeladaService():
 
         directorio = Path(__file__).resolve().parent
         directorio.mkdir(parents=True, exist_ok=True)
-        ruta_pdf = directorio / NOMBRE_ARCHIVO
+        ruta_pdf = directorio / 'reports' / NOMBRE_ARCHIVO
         
         # Cargar metadatos existentes
         metadata = InformeHeladaService._cargar_metadata(directorio)

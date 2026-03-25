@@ -21,6 +21,8 @@ class FirmaService():
         
         BASE_DIR = Path(__file__).resolve().parent
         INFORME_DIR = BASE_DIR
+        CREDENCIALES_DIR = BASE_DIR / 'assets'
+
 
         nombre_archivo = None
         if tipo_prediccion == "heladas":
@@ -28,7 +30,7 @@ class FirmaService():
         elif tipo_prediccion == "plagas":
             nombre_archivo = "reporte_riesgos_plagas.pdf"
 
-        ruta_pdf = INFORME_DIR / nombre_archivo
+        ruta_pdf = INFORME_DIR / 'reports' / nombre_archivo
 
         password = os.getenv("PASSWORD_CERTIFICADO")
 
@@ -43,8 +45,8 @@ class FirmaService():
             index_last_page = num_paginas - 1
 
             signer = signers.SimpleSigner.load(
-                key_file = INFORME_DIR / "clave.key",
-                cert_file = INFORME_DIR / "certificado.crt",
+                key_file = CREDENCIALES_DIR / "clave.key",
+                cert_file = CREDENCIALES_DIR / "certificado.crt",
                 key_passphrase = password.encode("utf-8")
             )
 
@@ -59,8 +61,8 @@ class FirmaService():
             )
 
             if tipo_prediccion == "heladas":
-                with open(INFORME_DIR / f"reporte_heladas_firmado_{hoy}.pdf", "wb") as outf:
+                with open(INFORME_DIR / 'reports' / 'heladas' / f"reporte_heladas_firmado_{hoy}.pdf", "wb") as outf:
                     pdf_signer.sign_pdf(w, output=outf)
             elif tipo_prediccion == "plagas":
-                with open(INFORME_DIR / f"reporte_plagas_firmado_{hoy}.pdf", "wb") as outf:
+                with open(INFORME_DIR / 'reports' / 'plagas' / f"reporte_plagas_firmado_{hoy}.pdf", "wb") as outf:
                     pdf_signer.sign_pdf(w, output=outf)
