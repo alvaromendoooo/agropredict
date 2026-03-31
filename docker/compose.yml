@@ -168,8 +168,51 @@ services:
     networks:
       - broker
     restart: unless-stopped
-  
 
+  keycloak_postgres:
+    container_name: keycloak_postgres
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PORT: 5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    container_name: keycloak_app
+    image: quay.io/keycloak/keycloak:26.1
+    restart: always
+    ports:
+      - "8443:8443"
+    volumes:
+      - ${OPENSSL_PATH} # map certificates to container
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_USER}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_PASSWORD}
+      KC_HOSTNAME: ${KEYCLOAK_URL}
+      KC_HOSTNAME_PORT: ${KEYCLOAK_PORT}
+      KC_HOSTNAME_STRICT: ${KEYCLOAK_STRICT}
+      KC_DB_URL: jdbc:postgresql://keycloak_postgres:5432/keycloak
+      KC_DB: postgres # Tipo de driver
+      KC_DB_SCHEMA: public
+      KC_DB_USERNAME:  ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_HTTPS_CERTIFICATE_FILE: /etc/x509/https/tls.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /etc/x509/https/tls.key
+    depends_on:
+      keycloak_postgres:
+        condition: service_healthy
+    command:
+      - start
+  
 networks:
   broker:
     external: true
@@ -183,3 +226,4 @@ volumes:
   mcp_data:
     driver: local
   ollama_models:
+  postgres_data:
