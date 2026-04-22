@@ -8,7 +8,7 @@ class BaseClient:
     def __init__(self, app, service_name : str):
         self.app = app
         self.service_name = service_name
-        self.timeout = 10
+        self.timeout = 30
 
     def _make_request(
             self,

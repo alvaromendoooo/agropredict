@@ -1,19 +1,10 @@
 import threading
 import logging
 from ..informe.form_cert_sign import FirmaService
+from typing import Optional
 
 
 logger = logging.getLogger()
-
-def _background_task(
-    app,
-    func,
-    *args,
-    **kwargs
-):
-    with app.app_context():
-        func(*args, **kwargs)
-
 
 def _background_pipeline(
     app, 
@@ -54,22 +45,29 @@ def generar_informe_heladas_background(
         args=(app, pasos),
         daemon=True
     )
+
     thread.start()
 
 def generar_informe_plagas_background(
     app, 
-    plagas : list
+    plagas : Optional[list],
+    tipo_informe : str,
+    datos_estimados : Optional[dict]
 ):
     """
     Lanza en background la generación del informe sobre riesgos de plagas y enfermedades y 
     su firma digital.
     """
-    from ..informe.form_plagues_generator import InformePlagaService
+    from ..informe.form_plagues_calculated_generator import InformePlagaService
+    from ..informe.form_plague_estimated_generator import InformePlagaEstimadaService
 
-    pasos = [
-        (InformePlagaService.crear_informe, (plagas), {}),
-        (FirmaService.generar_firma, ("plagas",), {}),
-    ]
+    if tipo_informe == "calculado":
+        pasos = [
+            (InformePlagaService.crear_informe, (plagas), {}),
+            (FirmaService.generar_firma, ("plagas",), {}),
+        ]
+    elif tipo_informe == "estimado":
+        pasos = [(InformePlagaEstimadaService.crear_informe_estimado, (datos_estimados,), {}),]
 
     thread = threading.Thread(
         target = _background_pipeline,

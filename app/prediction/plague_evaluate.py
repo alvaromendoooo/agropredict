@@ -1,132 +1,308 @@
-from .prediction_dto import PrediccionMeteorologicaPlagas, AlertaPlagaDTO, DatosSensorDTO, TipoAlerta
-from datetime import datetime, timedelta
+from .prediction_dto import AlertaPlagaDTO, TipoAlerta
+from datetime import datetime, timedelta, date
+import operator
 
 class EvaluarPlaga:
-    """
-    Contiene la lógica del umbral para cada plaga.
-    Cuando se incorpore una nueva plaga a evaluar, se debe incoporar un nuevo método _evaluar()
-    """
 
-    # ---- MÉTODOS GENÉRICOS----#
+    OPERADORES = {
+        ">=": operator.ge,
+        "<=": operator.le,
+        ">": operator.gt,
+        "<": operator.lt,
+        "==": operator.eq,
+        "=": operator.eq
+    }
+
+    MAP_SIAR_CONDICIONES = {
+        "temperatura_aire" : "tempMedia",
+        "temperatura_media" : "tempMedia",
+        "temperatura_max" : "tempMax",
+        "temperatura_min" : "tempMin",
+        "humedad_relativa" : "humedadMedia",
+        "precipitacion" : "precipitacion",
+        "velocidad_viento" : "velViento",
+        "radiacion_solar" : "radiacion",
+        "evapotranspiracion" : "etpMon"
+    }
+
+    NIVEL_PRIORIDAD = {
+        "SIN_RIESGO": 0,
+        "PREVENTIVA": 1,
+        "CRITICA": 2
+    }
+
+    # ── Método principal ──────────────────────────────────────────────────────
+
     @staticmethod
-    def _comprobar_requisito_dias_humedad_bajo_rango(
-        dias : int,
-        lecturas_bajo_rango : list
-    ) -> bool:
-        """
-        Dado los datos pasados por parámetros, indica si se cumple la restricción de días
-        sobre esa plaga o no.
-        """
+    def evaluar_plaga_generica(
+        condiciones_evaluables: list,
+        datos_por_dia: dict,        # {date: {variable: valor}}
+        fecha_evaluacion: date,
+        plaga: dict,
+        meteo: dict = None
+    ) -> AlertaPlagaDTO:
 
-        dias_acumulados = 0
-        
-        dias_registrados = {
-            datetime.fromisoformat(lectura.timestamp.replace('Z', '+00:00')).date()
-            for lectura in lecturas_bajo_rango
-        } # Almacena en el conjunto los días diferentes de las lecturas cuya humedad foliar <= 30.0
+        ventanas = plaga.get("ventana_temporal") or []
+        datos_hoy = datos_por_dia.get(fecha_evaluacion, {})
 
-        dias_ordenados = sorted(dias_registrados)
+        # 1. Evaluación simple del día (siempre se ejecuta)
+        resultado_simple = EvaluarPlaga._evaluar_dia_simple(
+            condiciones_evaluables = condiciones_evaluables,
+            datos_del_dia = datos_hoy,
+            plaga = plaga,
+            meteo_dia = meteo or {}
+        )
 
-        dia_iterado = None
-        for dia in dias_ordenados:
-            if dia_iterado == None:
-                dia_iterado = dia
-            elif timedelta(days=1) <= (dia - dia_iterado) <= timedelta(days=2):
-                dia_iterado = dia
-                dias_acumulados += 1
+        if not ventanas:
+            return resultado_simple
+
+        # 2. Si hay ventanas temporales, evaluamos cada una
+        mejor_nivel = resultado_simple.nivel
+        mejor_resultado = resultado_simple
+
+        resultados_ventantas = []
+        for ventana in ventanas:
+            modo = ventana.get("modo")
+            nivel_objetivo = TipoAlerta[ventana.get("nivel_si_cumple", "PREVENTIVA")]
+            # Uso condiciones_override si existen, si no las generales
+            condiciones = ventana.get("condiciones_evaluables_override") or condiciones_evaluables
+
+            if modo == "consecutivo":
+                resultado_ventana = EvaluarPlaga._evaluar_consecutivo(
+                    condiciones=condiciones,
+                    datos_por_dia=datos_por_dia,
+                    fecha_evaluacion=fecha_evaluacion,
+                    dias_requeridos=ventana["dias_consecutivos_requeridos"],
+                    nivel_objetivo=nivel_objetivo,
+                    plaga=plaga,
+                    meteo = meteo
+                )
+            elif modo == "acumulacion_gdd":
+                resultado_ventana = EvaluarPlaga._evaluar_gdd(
+                    datos_por_dia=datos_por_dia,
+                    fecha_evaluacion=fecha_evaluacion,
+                    ventana=ventana,
+                    nivel_objetivo=nivel_objetivo,
+                    plaga=plaga
+                )
             else:
-                dia_iterado = dia
+                continue
 
+            resultados_ventantas.append(resultado_ventana)
 
-        if dias_acumulados == dias: # Cumple con la restricción
-            return True
-        else:
-            return False
-        
+            # Nos quedamos con el nivel más alto encontrado
+            if EvaluarPlaga.NIVEL_PRIORIDAD.get(resultado_ventana.nivel.value, 0) > \
+               EvaluarPlaga.NIVEL_PRIORIDAD.get(mejor_nivel.value, 0):
+                mejor_nivel = resultado_ventana.nivel
+                mejor_resultado = resultado_ventana
+
+        # Muestra información del cumplimiento parcial de las condiciones sobre las ventanas evaluadas
+        info_ventanas_parciales = [
+            r.mensaje for r in resultados_ventantas
+            if r != mejor_resultado and r.nivel != TipoAlerta.CRITICA
+        ]
+
+        mejor_resultado.condiciones_pendientes += info_ventanas_parciales
+
+        return AlertaPlagaDTO(
+            mensaje=mejor_resultado.mensaje,
+            nivel=mejor_nivel,
+            nombre_plaga=plaga['nombre'],
+            condiciones_cumplidas=mejor_resultado.condiciones_cumplidas,
+            condiciones_pendientes=mejor_resultado.condiciones_pendientes,
+            tipo_organismo=plaga['tipo'],
+            agente_causante=plaga['agente_causante'],
+            url_referencia=plaga.get('mas_info', ''),
+            recomendacion=""
+        )
+
+    # ── Evaluación simple (Patrón 1) ──────────────────────────────────────────
+
     @staticmethod
-    def _definir_nivel_riesgo(
-        condiciones_cumplidas : int,
-        condiciones_totales : int
-    ):
+    def _evaluar_dia_simple(condiciones_evaluables, datos_del_dia, plaga, meteo_dia=None) -> AlertaPlagaDTO:
+        """
+        Evalúa condiciones para un día específico
+        
+        :param meteo_dia: Diccionario con datos meteorológicos del día (variables SiAR originales)
+        """
+        cumplidas = []
+        pendientes = []
+        meteo_dia = meteo_dia or {}
+
+        for condicion in condiciones_evaluables:
+            tipo_variable = condicion["tipo"]
+            valor_umbral = condicion["valor"]
+            operador_str = condicion.get("operador", "==")
+            operador_func = EvaluarPlaga.OPERADORES.get(operador_str)
+            
+            # Obtener valor de sensores
+            valor_real = datos_del_dia.get(tipo_variable)
+            
+            # Intentar obtener del meteo si no hay datos de sensores
+            valor_meteo = None
+            if tipo_variable in EvaluarPlaga.MAP_SIAR_CONDICIONES:
+                var_siar = EvaluarPlaga.MAP_SIAR_CONDICIONES[tipo_variable]
+                valor_meteo = meteo_dia.get(var_siar)
+            
+            # Decidir qué valor usar
+            valor_usado = None
+            fuente = None
+            
+            if valor_real is not None:
+                valor_usado = valor_real
+                fuente = "sensor"
+            elif valor_meteo is not None:
+                valor_usado = valor_meteo
+                fuente = "meteorológico"
+            
+            if valor_usado is not None:
+                if operador_func(valor_usado, valor_umbral):
+                    cumplidas.append(f"{tipo_variable}: {valor_usado} {operador_str} {valor_umbral} ({fuente})")
+                else:
+                    pendientes.append(f"{tipo_variable}: {valor_usado} no es {operador_str} {valor_umbral} ({fuente})")
+            else:
+                pendientes.append(f"Sin datos para {tipo_variable}")
+
+        nivel = EvaluarPlaga._definir_nivel_riesgo(len(cumplidas), len(condiciones_evaluables))
+        pendientes_unico = list(dict.fromkeys(pendientes))
+
+        return AlertaPlagaDTO(
+            mensaje = f"Evaluación {plaga['nombre']}: {len(cumplidas)}/{len(condiciones_evaluables)} condiciones",
+            nivel = nivel,
+            nombre_plaga = plaga['nombre'],
+            condiciones_cumplidas = cumplidas,
+            condiciones_pendientes = pendientes_unico,
+            url_referencia = plaga.get('mas_info', ''),
+            tipo_organismo = plaga['tipo'],
+            agente_causante = plaga['agente_causante'],
+            recomendacion=""
+        )
+
+    # ── Evaluación consecutiva (Patrón 2) ────────────────────────────────────
+
+    @staticmethod
+    def _evaluar_consecutivo(
+        condiciones, datos_por_dia, fecha_evaluacion,
+        dias_requeridos, nivel_objetivo, plaga, meteo
+    ) -> AlertaPlagaDTO:
+        
+        dias_consecutivos = 0
+
+        for i in range(dias_requeridos):
+            dia = fecha_evaluacion - timedelta(days=i)
+            datos_dia = datos_por_dia.get(dia, {})
+            meteo_dia = meteo.get(dia, {}) if isinstance(meteo, dict) else {}
+
+            if EvaluarPlaga._todas_condiciones_cumplidas(condiciones, datos_dia, meteo_dia):
+                dias_consecutivos += 1
+            else:
+                break
+
+        cumple = dias_consecutivos >= dias_requeridos
+        nivel = nivel_objetivo if cumple else (
+            TipoAlerta.PREVENTIVA if dias_consecutivos > 0 else TipoAlerta.SIN_RIESGO
+        )
+
+        return AlertaPlagaDTO(
+            mensaje=f"Ventana consecutiva: {dias_consecutivos}/{dias_requeridos} días favorables",
+            nivel=nivel,
+            nombre_plaga=plaga['nombre'],
+            condiciones_cumplidas=[f"{dias_consecutivos} días consecutivos"] if dias_consecutivos > 0 else [],
+            condiciones_pendientes=[] if cumple else [f"Faltan {dias_requeridos - dias_consecutivos} días"],
+            tipo_organismo=plaga['tipo'],
+            agente_causante=plaga['agente_causante'],
+            url_referencia=plaga.get('mas_info', ''),
+            recomendacion=""
+        )
+    
+    # ── Evaluación GDD (Patrón 3) ─────────────────────────────────────────────
+
+    @staticmethod
+    def _evaluar_gdd(
+        datos_por_dia, fecha_evaluacion,
+        ventana, nivel_objetivo, plaga
+    ) -> AlertaPlagaDTO:
+        temperatura_base = ventana["temperatura_base"]
+        gdd_objetivo = ventana["gdd_objetivo"]
+        dias_ventana = ventana["dias_ventana"]
+
+        # Soporte para fecha_inicio_acumulacion fija (ej: Rhagoletis desde 01-marzo)
+        fecha_inicio_str = ventana.get("fecha_inicio_acumulacion")
+        if fecha_inicio_str:
+            mes, dia = map(int, fecha_inicio_str.split("-"))
+            fecha_inicio_acum = date(fecha_evaluacion.year, mes, dia)
+            dias_a_evaluar = (fecha_evaluacion - fecha_inicio_acum).days + 1
+        else:
+            dias_a_evaluar = dias_ventana
+
+        gdd_acumulado = 0.0
+
+        for i in range(dias_a_evaluar):
+            dia = fecha_evaluacion - timedelta(days=i)
+            datos_dia = datos_por_dia.get(dia, {})
+
+            t_max = datos_dia.get("temperatura_max")
+            t_min = datos_dia.get("temperatura_min")
+
+            if t_max is not None and t_min is not None:
+                gdd_dia = max(0.0, (t_max + t_min) / 2 - temperatura_base)
+                gdd_acumulado += gdd_dia
+        print(f"{gdd_acumulado} - {gdd_objetivo}")
+        cumple = gdd_acumulado >= gdd_objetivo
+        nivel = nivel_objetivo if cumple else (
+            TipoAlerta.PREVENTIVA if gdd_acumulado >= gdd_objetivo * 0.7 else TipoAlerta.SIN_RIESGO
+        )
+
+        return AlertaPlagaDTO(
+            mensaje=f"GDD acumulados: {gdd_acumulado:.1f} / {gdd_objetivo}",
+            nivel=nivel,
+            nombre_plaga=plaga['nombre'],
+            condiciones_cumplidas=[f"GDD acumulados: {gdd_acumulado:.1f}"] if cumple else [],
+            condiciones_pendientes=[] if cumple else [f"Faltan {gdd_objetivo - gdd_acumulado:.1f} GDD para alcanzar el objetivo"],
+            tipo_organismo=plaga['tipo'],
+            agente_causante = plaga['agente_causante'],
+            url_referencia = plaga['mas_info'],
+            recomendacion = ""
+        )
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _todas_condiciones_cumplidas(condiciones, datos_dia, meteo_dia=None) -> bool:
+        """
+        Verifica si todas las condiciones se cumplen para un día
+        
+        :param meteo_dia: Diccionario con datos meteorológicos del día (variables SiAR)
+        """
+        meteo_dia = meteo_dia or {}
+        
+        for condicion in condiciones:
+            operador_func = EvaluarPlaga.OPERADORES.get(condicion.get("operador", "=="))
+            valor_umbral = condicion["valor"]
+            
+            # Priorizar datos de sensores
+            valor = datos_dia.get(condicion["tipo"])
+            
+            # Fallback a datos meteorológicos
+            if valor is None and condicion["tipo"] in EvaluarPlaga.MAP_SIAR_CONDICIONES:
+                var_siar = EvaluarPlaga.MAP_SIAR_CONDICIONES[condicion["tipo"]]
+                valor = meteo_dia.get(var_siar)
+            
+            if valor is None:
+                return False
+                
+            if not operador_func(valor, valor_umbral):
+                return False
+                
+        return True
+
+    @staticmethod
+    def _definir_nivel_riesgo(condiciones_cumplidas, condiciones_totales):
+        if condiciones_totales == 0:
+            return TipoAlerta.SIN_RIESGO
         if condiciones_cumplidas == condiciones_totales:
             return TipoAlerta.CRITICA
         elif condiciones_cumplidas > 0:
             return TipoAlerta.PREVENTIVA
         else:
             return TipoAlerta.SIN_RIESGO
-        
-
-    # ----TOMATE---- #
-    @staticmethod
-    def _evaluar_tomate_001(
-        datos_sensores : list[DatosSensorDTO],
-        datos_meteorologicos : PrediccionMeteorologicaPlagas
-    ) -> AlertaPlagaDTO:
-        """
-        Nombre :  Aculops lycopersici
-        Umbral : Primavera-verano. Alerta activa tras 6-7 dias consecutivos con temperatura maxima en torno a 27C y 
-        humedad relativa igual o inferior al 30%. Ciclo completo en ~7 dias bajo condiciones optimas.
-        """
-        TMAX_UMBRAL = 27.0
-        HUM_UMBRAL = 30.0
-        DIAS_CONSECUTIVOS = 6
-        NOMBRE_PLAGA = "Acaro del bronceado del tomate"
-
-        # Definición de recomendaciones en base a riesgo
-        recomendaciones = {
-            'critica' : 'Usar mallas (mínimo 10*20 kilos/cm2) durante el cultivo en las aberturas laterales, cenitales y puertas, que coincidan con los vientos dominantes siempre y cuando la temperatura ambiente no sea demasiado elevada. Además, hay que vigilar que no se produzcan roturas en los plásticos.',
-            'preventiva' : 'Eliminar las malas hierbas y restos de cultivos, ya que pueden actuar como reservorio de la planta. Eliminar plantas que estén muy afectadas.',
-        }
-
-        # Almacena las restricciones cumplidas y pendientes
-        cumplidas = []
-        pendientes = []
-
-        # TEMPERATURA MÁXIMA
-        if datos_meteorologicos.temperatura_maxima >= TMAX_UMBRAL:
-            cumplidas.append(
-                f"Temperatura máxima {datos_meteorologicos.temperatura_maxima} ºC >= {TMAX_UMBRAL} ºC"
-            )
-        else:
-            pendientes.append(
-                f"Temperatura maxima {datos_meteorologicos.temperatura_maxima} ºC < {TMAX_UMBRAL} ºC requerido"
-            )
-
-        # HUMEDAD FOLIAR (sensores)
-        lecturas_bajo_rango = [s for s in datos_sensores if s.humedad_foliar <= HUM_UMBRAL]
-
-        if len(lecturas_bajo_rango) is not 0:
-            cumplidas.append(
-                f"Registradas {len(lecturas_bajo_rango)} lecturas cuya humedad foliar <= {HUM_UMBRAL}"
-            )
-        else:
-            pendientes.append(
-                f"No se han registrado lecturas cuya humedad foliar <= {HUM_UMBRAL}"
-            )
-        # HUMEDAD FOLIAR DIA CONSECUTIVO
-        if EvaluarPlaga._comprobar_requisito_dias_humedad_bajo_rango(DIAS_CONSECUTIVOS, lecturas_bajo_rango):
-            cumplidas.append(
-                f"Registrados {DIAS_CONSECUTIVOS} días consecutivos con humedad <= {HUM_UMBRAL}"
-            )
-        else:
-            pendientes.append(
-                f"No se han registrado {DIAS_CONSECUTIVOS} días consecutivos con humedad <= {HUM_UMBRAL}"
-            )
-
-        nivel_riesgo = EvaluarPlaga._definir_nivel_riesgo(
-            condiciones_cumplidas = len(cumplidas),
-            condiciones_totales = 3
-        )
-
-        return AlertaPlagaDTO(
-            mensaje = f"Evaluación de riesgos aplicando umbrales sobre la plaga {NOMBRE_PLAGA}",
-            recomendacion = recomendaciones[nivel_riesgo] if nivel_riesgo != TipoAlerta.SIN_RIESGO else None,
-            nivel =  nivel_riesgo,
-            nombre_plaga = "Acaro del bronceado del tomate",
-            agente_causante = "Phytophthora spp. (de Bary, 1876)",
-            condiciones_cumplidas = cumplidas,
-            condiciones_pendientes = pendientes,
-            url_referencia = "https://www.infoagro.com/proteccion_cultivos/phytophthora.htm",
-            tipo_organismo = "acaro"
-        )
-        

@@ -1,4 +1,5 @@
 from pyhanko.sign import signers
+from pyhanko.sign import fields
 from pyhanko.sign.general import load_cert_from_pemder
 from pyhanko.sign.fields import SigFieldSpec
 from pyhanko.sign.signers import PdfSigner

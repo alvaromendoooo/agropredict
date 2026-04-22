@@ -1,11 +1,11 @@
 from config.config import Config
 from .prediction_dto import *
-from .predictor_plagas import PredictorPlagas
 from typing import Optional, Union
 from datetime import date, timedelta
 from math import erf, sqrt
 from flask import current_app
 from typing import Dict, Any
+
 import re
 import time
 import os
@@ -104,17 +104,6 @@ class PredictionService():
         # P (X > z)
         # Probabilidad de que la helada ocurra después del día dado
         return 0.5*(1 - erf(z / sqrt(2)))
-    
-    @staticmethod
-    def calcular_riesgos_plagas_sobre_datos(
-        datos_plagas : Optional[list[dict]]
-    ) -> Optional[list[dict]]:
-        """
-        Dado datos de plagas asociados a cultivos, almacenados en la base de datos, obtiene la predicción      
-        """
-
-
-        
 
     @staticmethod
     def calcular_nivel_riesgo_porcentaje(
@@ -629,6 +618,7 @@ class PredictionService():
             for localidad in localidades_disponibles
             if localidad['nombre_normalizado'] in localidades_analizar
         ]
+        print(datos_localidades_analizar)
         
         if not datos_localidades_analizar:
             return ResumenEvaluacionLocalidadDTO(
@@ -643,11 +633,10 @@ class PredictionService():
 
         for localidad in datos_localidades_analizar:
             recomendaciones = []
-
             localidades_pred = next(
                 (
                     l for l in localidades_prediccion
-                    if l['nombre'] == localidad['nombre_normalizado']
+                    if l['nombre'] == localidad['nombre']
                 ),
                 None
             )
@@ -1396,48 +1385,6 @@ class PredictionService():
             datos_meteorologicos = datos_meteorologicos,
             evaluacion_localidades = predicciones_localidad
         )
-    
-    @staticmethod
-    def _build_cultivo_plagas_calculadas(
-        datos : list[dict]
-    ) -> Optional[list[RiesgoPlagaCultivoDTO]]:
-        """
-        Convierte en DTOs de tipo RiesgoPlagaCultivoDTO todos los 
-        datos obtenidos por parámetros
-
-        :param datos: Lista de datos obtenidos
-        :type datos: list[dict]
-        :return: DTO cargado
-        :rtype: Optional[RiesgoPlagaCultivoDTO]
-        """
-
-        if not datos:
-            return None
-
-        lista_dtos = []
-        for dato in datos:
-            lista_dtos.append(
-                RiesgoPlagaCultivoDTO(
-                    cultivo = CultivoDTO(
-                        nombre = dato['cultivo'],
-                        grupo = dato['grupo']
-                    ),
-                    plagas = [
-                        PlagaDTO(
-                            nombre = p['nombre'],
-                            agente_causante = p['agente_causante'],
-                            momento_critico = p['momento_critico'],
-                            observaciones = p['observaciones'],
-                            mas_info = p['mas_info'],
-                            tipo = p['tipo'],
-                            nivel_riesgo = p['nivel_riesgo']
-                        )
-                        for p in dato['plagas']
-                    ]
-                )
-            )
-        
-        return lista_dtos
 
     @classmethod
     def listar_variedades_disponibles(
@@ -1594,152 +1541,3 @@ class PredictionService():
             )
 
         return predicciones
-    
-
-    @classmethod
-    def obtener_prediccion_plagas_calculadas(
-        cls,
-        cultivos : list[str]
-    ):
-        """
-        Realiza el cálculo de predicción sobre riesgos de plagas, sobre datos proporcionados 
-        por data-service e itacyl. No necesita controlar variables climáticas porque la 
-        precisión ya calculada viene de los datos obtenidos.
-
-        :param cultivos: Lista de nombres de cultivos a predecir
-        :type cultivos: list[str]
-        """
-
-        if not cultivos:
-            return None
-        
-        cliente = cls._get_cliente()
-        data = cliente.get_cultivo_plaga_calendar(
-            nombres_cultivos = cultivos
-        )
-
-        # Obtención de la semana actual para construir la lógica del método
-        semana = datetime.today().isocalendar()[1] # Obtengo la semana que me devuelve la ISO 8601
-
-        # Obtención de los niveles de riesgos para la semana en la que nos encontramos
-        riesgos_plagas = []
-
-        for d in data:
-            plagas = d['plaga']
-            plagas_dict = {}
-            for p in plagas:
-                calendario = p['calendario']
-                objeto_riesgo = next((r for r in calendario if r['semana'] == semana), None)
-
-                riesgo = objeto_riesgo['nivel_alerta']
-
-                if 0 <= riesgo < 50:
-                    importancia = 'BAJA'
-                elif 50 <= riesgo < 75:
-                    importancia = 'MEDIA'
-                else:
-                    importancia = 'ALTA'
-
-                if p['public_id'] not in plagas_dict:
-                    plagas_dict[p['public_id']] = {
-                        'nombre' : p['nombre'],
-                        'agente_causante' : p['agente_causante'],
-                        'momento_critico' : p['momento_critico'],
-                        'observaciones' : p['observaciones'],
-                        'mas_info' : p['mas_info'],
-                        'tipo' : p['tipo'],
-                        'nivel_riesgo' : importancia 
-                    }
-
-            riesgos_plagas.append(
-                {
-                    'cultivo' : d['cultivo']['nombre'],
-                    'grupo' : d['cultivo']['grupo'],
-                    'plagas' : list(plagas_dict.values())
-                }
-            )
-
-        predicciones_plagas = PredictionService._build_cultivo_plagas_calculadas(
-            datos = riesgos_plagas
-        )
-
-        if not predicciones_plagas:
-            return None
-        
-        return predicciones_plagas
-    
-
-    @classmethod
-    def obtener_prediccion_plagas_estimadas(
-        cls,
-        cultivos : list[str],
-        province_code : Optional[str],
-        ccaa_code : Optional[str],
-        zona : str,
-        fecha_inicio : datetime,
-        fecha_fin : datetime
-    ):
-        """
-        Utiliza los datos de sensores y meteorológicos para obtener una 
-        prediccion estimada de riesgo antes plagas sobre cultivos cuyo 
-        que no tienen asociados un calendario de plagas.
-
-        Los leguminosos y los cereales si que almacenan el calendario.
-        """
-
-        try:
-            if not cultivos:
-                return
-            
-            cliente = cls._get_cliente()
-
-            # Almacena de clave los nombres de distinct cultivos parametrizados y de valor la lista de valores obtenidas por los sensores
-            sensores_por_eui = {}
-
-            # Almacena la información de los cultivos cuyos nombres coincidan con los pasafos por parámetros 
-            datos_cultivos_parametrizados = []
-            
-            # Llamadas a la API de data-service para obtener sus datos
-            datos_meteorologicos = cliente.get_future_data(
-                province_code = province_code,
-                ccaa_code = ccaa_code,
-                zona = zona,
-                prediccion = "tomorrow"
-            )
-             
-            datos_cultivos = cliente.get_datos_cultivos()
-
-            for dato in datos_cultivos:
-                for cultivo in cultivos:
-                    nombre_cultivo = cultivo.capitalize()
-                    if nombre_cultivo in dato['nombre']:
-                        datos_cultivos_parametrizados.append(dato)
-                        if nombre_cultivo not in sensores_por_eui:
-                            eui = dato['sensor']
-                            sensores_por_eui[eui] = []
-                            datos_sensores_cultivo = cliente.get_datos_sensores(
-                                eui = eui,
-                                fecha_inicio = date(2025,2,20), # Hardocded for tests
-                                fecha_fin = date(2025,2,27) # Harcoded for tests
-                            )
-
-                            if not datos_sensores_cultivo:
-                                continue
-
-                            sensores_por_eui[eui] = datos_sensores_cultivo[eui]
-
-            predicciones = PredictorPlagas.prediccion_plagas_predecibles(
-                cultivos = datos_cultivos_parametrizados,
-                sensores_por_eui = sensores_por_eui,
-                prediccion_meteorologica = datos_meteorologicos
-            )
-
-            if not predicciones:
-                return
-
-            return predicciones
-        
-        except Exception as e:
-            print(f"Error al obtener datos predictivos estimados sobre los cultivos : {cultivos} - {e}")
-            return
-

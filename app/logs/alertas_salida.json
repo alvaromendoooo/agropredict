@@ -2,10 +2,15 @@
     "mensaje": "La variedad 'lauranne' ha completado su requerimiento de horas de frío (682.5 / 190). AVISO: se han superado las 200 horas máximas recomendadas (682.5 acumuladas). Posible vernalización excesiva.",
     "recomendacion": "Consultar con el técnico agronómico sobre el impacto de la vernalización excesiva.",
     "nivel": "preventiva",
-    "timestamp": "2026-03-25 19:22:33.903775"
+    "timestamp": "2026-04-22 17:57:55.563663"
+}{
+    "mensaje": "La variedad 'guara' ha completado su requerimiento de horas de frío (682.5 / 400). AVISO: se han superado las 600 horas máximas recomendadas (682.5 acumuladas). Posible vernalización excesiva.",
+    "recomendacion": "Consultar con el técnico agronómico sobre el impacto de la vernalización excesiva.",
+    "nivel": "preventiva",
+    "timestamp": "2026-04-22 17:57:55.563907"
 }{
     "mensaje": "Riesgo leve de helada en algunos cultivos.",
     "recomendacion": "No se esperan daños generalizados, pero conviene vigilar cultivos tempranos o en fase de brotación.",
     "nivel": "informativa",
-    "timestamp": "2026-03-25 19:22:33.903832"
+    "timestamp": "2026-04-22 17:57:55.564062"
 }

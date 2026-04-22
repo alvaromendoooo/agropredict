@@ -1,15 +1,16 @@
 from .prediction_service import PredictionService
+from .predictor_plagas import PredictorPlagasService
 from . import helada_bp, plagas_bp
 from ..globals.log_decorator import log
 from ..globals.ApiExceptions import APIException
 from ..globals.dto2dict import dataclass_to_json
 from flask import jsonify
 import logging
-import json
 from ..threading.thread_task import( 
     generar_informe_heladas_background, 
     generar_informe_plagas_background
 )
+from ..globals.convertidor_tipo import convertir_tipo
 from flask import request, current_app
 from datetime import datetime, date
 
@@ -243,27 +244,21 @@ def prediccion_plagas_calculadas():
         cultivo = request.args.get('cultivo')
 
         if not cultivo:
-            return jsonify(
-                {
-                    'success' : 'false',
-                    'code' : '400',
-                    'message' : 'Invalid parameters',
-                    'error' : 'Se debe indicar el valor de un query param : cultivo'
-                }
+            raise APIException(
+                message = 'Invalid parameters',
+                status = 400,
+                error = 'Se debe indicar el valor de un query param : cultivo'
             )
         
-        datos = PredictionService.obtener_prediccion_plagas_calculadas(
+        datos = PredictorPlagasService.obtener_prediccion_plagas_calculadas(
             cultivos = cultivo
         )
 
         if not datos:
-            return jsonify(
-                {
-                    'success' : 'false',
-                    'status' : '404',
-                    'message' : 'Data Not Found',
-                    'error' : f'No se han encontrado datos para hacer la predicción de riesgos de plagas frente al cultivo : {cultivo}'
-                }
+            raise APIException(
+                message = 'Data Not Found',
+                status = 404,
+                error = f'No se han encontrado datos para hacer la predicción de riesgos de plagas frente al cultivo : {cultivo}'
             )
         
         
@@ -272,7 +267,9 @@ def prediccion_plagas_calculadas():
 
         generar_informe_plagas_background(
             current_app._get_current_object(),
-            plagas = [datos_dict]
+            plagas = [datos_dict],
+            datos_estimados= None,
+            tipo_informe = "calculado"
         )
 
         return datos_response
@@ -287,67 +284,40 @@ def prediccion_plagas_calculadas():
             }
         )
 
-@plagas_bp.route('/plagas/estimadas/<string:zona>/<string:fecha_ini>/<string:fecha_fin>', methods = ['GET'])
+@plagas_bp.route('/plagas/estimadas', methods = ['POST'])
 @log('../logs/fichero_salida.json')
-def prediccion_plagas_estimadas(
-    zona : str,
-    fecha_ini : str,
-    fecha_fin : str
-):
+def predecir_riesgo_plagas_estimadas():
+    datos_peticion = request.get_json()
+
     try:
-        # Obtener parámetros de la query
-        cultivos = request.args.getlist('cultivos')
-        ccaa_code = request.args.get('ccaa')
-        province_code = request.args.get('provincia')
+        # Extraemos los datos de la petición
+        cultivo = datos_peticion.get('cultivo')
+        fecha_inicio_str = datos_peticion.get('fecha_inicio')
+        fecha_fin_str = datos_peticion.get('fecha_fin')
+        datos_sensores = datos_peticion.get('datos_sensores')
 
-        if province_code and ccaa_code:
-            return jsonify(
-                {
-                    'success' : 'false',
-                    'code' : '400',
-                    'message' : 'Invalid Parameters',
-                    'error' : 'Solo se debe indicar una de los dos identificadores, el de las provincias (provincia) o el de las comunidades autonomas (ccaa)'
-                }
-            ), 400
-        
-        if not all([zona, fecha_ini, fecha_fin, cultivos]):
-            return jsonify(
-                {
-                    'success' : 'false',
-                    'status' : '400',
-                    'message' : 'Invalid Parameters',
-                    'error' : 'Se deben especificar los parámetros obligatorios indicados en la especificación del endpoint'
-                }
-            ), 400
-        
-        datos = PredictionService.obtener_prediccion_plagas_estimadas(
-            cultivos = cultivos,
-            province_code = province_code if province_code else None,
-            ccaa_code = ccaa_code if ccaa_code else None,
-            zona = zona,
-            fecha_inicio = datetime.strptime(fecha_ini, '%Y-%m-%d').date(),
-            fecha_fin = datetime.strptime(fecha_fin, '%Y-%m-%d').date()
+        # Parseo de fechas
+        fecha_inicio = datetime.fromisoformat(fecha_inicio_str.replace('Z', '+00:00')).date()
+        fecha_fin = datetime.fromisoformat(fecha_fin_str.replace('Z', '+00:00')).date()
+
+        resultado = PredictorPlagasService.obtener_prediccion_plagas_estimadas(
+            cultivo = cultivo,
+            datos_sensores = datos_sensores,
+            fecha_inicio = fecha_inicio,
+            fecha_fin = fecha_fin
         )
 
-        if not datos:
-            return jsonify(
-                {
-                    'success' : 'false',
-                    'status' : '404',
-                    'message' : 'Data Not Found',
-                    'error' : 'No se han obtenido datos de predicciones estimadas sobre riesgos de plagas'
-                }
-            )
-        
-        return dataclass_to_json(datos)
+        resultado_response = dataclass_to_json(resultado)
+        resultado_dict = resultado_response.get_json()
 
-    except APIException as e:
-        logger.error(f"Error inesperado en prediccion_plagas_calculadas : {e}")
-        return jsonify(
-            {
-                'message' : 'Error interno del servidor',
-                'status' : 500,
-                'error' : 'Internal Server Error'
-            }
+        generar_informe_plagas_background(
+            current_app._get_current_object(),
+            plagas = None,
+            datos_estimados= resultado_dict,
+            tipo_informe = "estimado"
         )
 
+        return dataclass_to_json(resultado), 200
+
+    except Exception as e:
+        raise

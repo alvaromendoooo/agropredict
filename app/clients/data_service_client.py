@@ -56,6 +56,7 @@ class DataServiceClient(BaseClient):
             logger.error(f"Algo falló en la comunicación con data_service: {e}")
             return None
     
+    @circuit(cls = CircuitBreakerPersonalizado)
     def get_historic_data(
         self,
         province_code : Optional[str],
@@ -368,14 +369,17 @@ class DataServiceClient(BaseClient):
     @circuit(cls = CircuitBreakerPersonalizado)
     def get_datos_sensores(
         self, 
-        eui : str,
+        euis : list[str],
         fecha_inicio : date,
         fecha_fin : date
     ):
         try:
-            if not all([eui, fecha_inicio, fecha_fin]):
+            if not all([euis, fecha_inicio, fecha_fin]):
                 raise ValueError("Error, para consultar datos de sensores, se deben indicar los siguientes parámetros (eui, fecha_inicio, fecha_fin)")
-            url = f"{self.base_sensores_url}?eui={eui}&fecha_inicio={fecha_inicio}&fecha_fin={fecha_fin}"
+            url = f"{self.base_sensores_url}?"
+            for eui in euis:
+                url += f"eui={eui}&"
+            url += f"fecha_inicio={fecha_inicio}&fecha_fin={fecha_fin}"
 
             response = self._make_request(
                 url = url,
@@ -384,6 +388,37 @@ class DataServiceClient(BaseClient):
 
             if response.status_code == 404:
                 logger.error("No se han encontrado datos de sensores sobre los parámetros indicados")
+                return None
+            if response.status_code >= 500:
+                logger.error("Se ha producido un error por parte de data-service")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            logger.error(f"Se ha producido un error al obtener datos de sensores sobre data-service : {e}")
+            return None
+    
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_plagas_por_cultivo(
+        self,
+        cultivo : str
+    ):
+        try:
+            if not cultivo:
+                raise ValueError("Error, se debe indicar el nombre del cultivo para obtener sus plagas asociadas")
+
+            url = f"{self.base_crop_url}/plague?cultivos={cultivo}"
+
+            response = self._make_request(
+                url = url,
+                method = 'GET'
+            )
+
+            if response.status_code == 404:
+                logger.error("No se han encontrado datos de plagas asociadas al cultivo indicado")
                 return None
             if response.status_code >= 500:
                 logger.error("Se ha producido un error por parte de data-service")
