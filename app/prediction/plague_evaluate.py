@@ -31,6 +31,35 @@ class EvaluarPlaga:
         "CRITICA": 2
     }
 
+    # ── Evaluacion externa ──────────────────────────────────────────────────────
+    @staticmethod
+    def evaluar_algoritmo_externo(
+        url : str,
+        datos,
+        plaga,
+        fecha
+    ):
+        import requests
+        response = requests.post(url, json = {
+            "plaga_id" : plaga['public_id'],
+            "fecha" : fecha.strftime("%Y-%m-%d"),
+            "datos" : datos
+        })
+
+        resultado = response.json()
+
+        return AlertaPlagaDTO(
+            mensaje = resultado.get('mensaje'),
+            nivel = TipoAlerta[resultado["nivel_riesgo"]],
+            nombre_plaga = plaga["nombre"],
+            condiciones_cumplidas = resultado.get("condiciones_cumplidas", []),
+            condiciones_pendientes = resultado.get("condiciones_pendientes", []),
+            tipo_organismo = plaga["tipo"],
+            agente_causante = plaga["agente_causante"],
+            url_referencia = plaga.get("mas_info", ""),
+            recomendacion = resultado.get("recomendacion", "")
+        )
+
     # ── Método principal ──────────────────────────────────────────────────────
 
     @staticmethod
@@ -102,7 +131,8 @@ class EvaluarPlaga:
             if r != mejor_resultado and r.nivel != TipoAlerta.CRITICA
         ]
 
-        mejor_resultado.condiciones_pendientes += info_ventanas_parciales
+        for info in info_ventanas_parciales:
+            mejor_resultado.condiciones_pendientes.append(info)
 
         return AlertaPlagaDTO(
             mensaje=mejor_resultado.mensaje,
@@ -151,27 +181,36 @@ class EvaluarPlaga:
             if valor_real is not None:
                 valor_usado = valor_real
                 fuente = "sensor"
+
             elif valor_meteo is not None:
                 valor_usado = valor_meteo
                 fuente = "meteorológico"
             
+            # Estructura generica de cumplimiento de condiciones
+            generico_cumplimiento = {
+                "variable" : tipo_variable,
+                "valor_real" : valor_usado,
+                "operador" : operador_str,
+                "umbral" : valor_umbral,
+                "fuente" : fuente
+            }
+            
             if valor_usado is not None:
                 if operador_func(valor_usado, valor_umbral):
-                    cumplidas.append(f"{tipo_variable}: {valor_usado} {operador_str} {valor_umbral} ({fuente})")
+                    cumplidas.append(generico_cumplimiento)
                 else:
-                    pendientes.append(f"{tipo_variable}: {valor_usado} no es {operador_str} {valor_umbral} ({fuente})")
+                    pendientes.append(generico_cumplimiento)
             else:
                 pendientes.append(f"Sin datos para {tipo_variable}")
 
         nivel = EvaluarPlaga._definir_nivel_riesgo(len(cumplidas), len(condiciones_evaluables))
-        pendientes_unico = list(dict.fromkeys(pendientes))
 
         return AlertaPlagaDTO(
             mensaje = f"Evaluación {plaga['nombre']}: {len(cumplidas)}/{len(condiciones_evaluables)} condiciones",
             nivel = nivel,
             nombre_plaga = plaga['nombre'],
             condiciones_cumplidas = cumplidas,
-            condiciones_pendientes = pendientes_unico,
+            condiciones_pendientes = pendientes,
             url_referencia = plaga.get('mas_info', ''),
             tipo_organismo = plaga['tipo'],
             agente_causante = plaga['agente_causante'],
@@ -204,11 +243,11 @@ class EvaluarPlaga:
         )
 
         return AlertaPlagaDTO(
-            mensaje=f"Ventana consecutiva: {dias_consecutivos}/{dias_requeridos} días favorables",
+            mensaje={"dias_consecutivos" : dias_consecutivos, "dias_requeridos" : dias_requeridos},
             nivel=nivel,
             nombre_plaga=plaga['nombre'],
-            condiciones_cumplidas=[f"{dias_consecutivos} días consecutivos"] if dias_consecutivos > 0 else [],
-            condiciones_pendientes=[] if cumple else [f"Faltan {dias_requeridos - dias_consecutivos} días"],
+            condiciones_cumplidas=[{"dias_consecutivos" : dias_consecutivos}] if dias_consecutivos > 0 else [],
+            condiciones_pendientes=[] if cumple else [{"dias_consecutivos" : dias_consecutivos, "dias_requeridos" : dias_requeridos}],
             tipo_organismo=plaga['tipo'],
             agente_causante=plaga['agente_causante'],
             url_referencia=plaga.get('mas_info', ''),
@@ -247,18 +286,18 @@ class EvaluarPlaga:
             if t_max is not None and t_min is not None:
                 gdd_dia = max(0.0, (t_max + t_min) / 2 - temperatura_base)
                 gdd_acumulado += gdd_dia
-        print(f"{gdd_acumulado} - {gdd_objetivo}")
+
         cumple = gdd_acumulado >= gdd_objetivo
         nivel = nivel_objetivo if cumple else (
             TipoAlerta.PREVENTIVA if gdd_acumulado >= gdd_objetivo * 0.7 else TipoAlerta.SIN_RIESGO
         )
 
         return AlertaPlagaDTO(
-            mensaje=f"GDD acumulados: {gdd_acumulado:.1f} / {gdd_objetivo}",
+            mensaje={"gdd_acumulado" : gdd_acumulado, "gdd_objetivo" : gdd_objetivo},
             nivel=nivel,
             nombre_plaga=plaga['nombre'],
-            condiciones_cumplidas=[f"GDD acumulados: {gdd_acumulado:.1f}"] if cumple else [],
-            condiciones_pendientes=[] if cumple else [f"Faltan {gdd_objetivo - gdd_acumulado:.1f} GDD para alcanzar el objetivo"],
+            condiciones_cumplidas=[{"gdd_acumulado" : gdd_acumulado}] if cumple else [],
+            condiciones_pendientes=[] if cumple else [{"gdd_acumulado" : gdd_acumulado, "gdd_objetivo" : gdd_objetivo}],
             tipo_organismo=plaga['tipo'],
             agente_causante = plaga['agente_causante'],
             url_referencia = plaga['mas_info'],

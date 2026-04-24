@@ -219,6 +219,46 @@ class InformePlagaService:
         return tabla
 
     @staticmethod
+    def crear_tabla_fuentes_datos(
+        styles
+    ):
+        elementos = []
+        datos_tabla = [["Fuente de datos", "Descripción", "Detalle"]]
+
+        # Como solo usa ITACyL no tengo que meter condiciones
+        datos_tabla.append([
+            "Servicio público meteorológico (ITACyL)",
+            "Entidad pública dependiente de la Consejería de Agricultura, "
+            "Ganaderia y Desarrollo Rural de la Junta de Castilla y León.",
+            "Provincia Castilla y León - Datos plagas"
+        ])
+
+        col_widths = [1.6 * inch, 3.5 * inch, 1.8 * inch]
+        tabla = Table(datos_tabla, colWidths = col_widths)
+
+        estilo = [
+            ("BACKGROUND", (0, 0), (-1, 0), COLOR_PRIMARIO),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 8),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 1), (-1, -1), 7),
+            ("BACKGROUND", (0, 1), (-1, -1), COLOR_FONDO_TABLA),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
+            ("BOX", (0, 0), (-1, -1), 1, COLOR_PRIMARIO),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]
+
+        tabla.setStyle(TableStyle(estilo))
+        elementos.append(tabla)
+
+        return elementos
+
+    @staticmethod
     def crear_informe(
         datos : dict,
     ):
@@ -315,6 +355,30 @@ class InformePlagaService:
         )
         story.append(Paragraph(leyenda, estilo_resumen))
         story.append(Spacer(1, 0.2 * inch))
+
+        # ====== SECCIÓN FUENTE DATOS =====
+        story.append(Paragraph("FUENTES DE DATOS UTILIZADAS"), estilo_titulo)
+        story.append(HRFlowable(width = "100%", thickness = 1, color = COLOR_PRIMARIO))
+        story.append(Spacer(1, 0.1 * inch))
+
+        descripcion_fuentes = (
+            "Los datos utilizados para el cálculo de predicciones de riesgos proceden de "
+            "el ente público del Instituto Tecnológico Agrario de Castilla y León (ITACyL). "
+            "Su servicio de predicciones ante plagas se ve limitado únicamente para " \
+            "cultivos que pertenezcan a grupos de cultivo como CEREALES y LEGUMINOSOS. " \
+            "Internamente utiliza datos meteorológicos de sus estaciones meteorológicas " \
+            "que transforma en riesgos semanales por cada plaga, de forma anual."
+        )
+        story.append(Paragraph(descripcion_fuentes, estilo_normal))
+        story.append(Spacer(1, 0.08 * inch))
+
+        elementos_fuentes = InformePlagaService.crear_tabla_fuentes_datos(
+            styles
+        )
+
+        story.append(elementos_fuentes)
+        story.append(PageBreak())
+
         # ====== SECCIÓN POR CULTIVO ======
         for idx, cultivo_data in enumerate(datos, start=1):
             cultivo = cultivo_data.get("cultivo", {})

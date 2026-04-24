@@ -295,6 +295,7 @@ def predecir_riesgo_plagas_estimadas():
         fecha_inicio_str = datos_peticion.get('fecha_inicio')
         fecha_fin_str = datos_peticion.get('fecha_fin')
         datos_sensores = datos_peticion.get('datos_sensores')
+        parcela_id = datos_peticion.get('parcela', None)
 
         # Parseo de fechas
         fecha_inicio = datetime.fromisoformat(fecha_inicio_str.replace('Z', '+00:00')).date()
@@ -310,11 +311,19 @@ def predecir_riesgo_plagas_estimadas():
         resultado_response = dataclass_to_json(resultado)
         resultado_dict = resultado_response.get_json()
 
+        # Obtengo las parcelas asociadas al cultivo para dar contexto de cálculo
+        parcelas_asociadas_cultivo = PredictorPlagasService._obtener_parcelas_asociadas_cultivo(
+            cultivo, 
+            parcela_id = parcela_id
+        )
+
         generar_informe_plagas_background(
             current_app._get_current_object(),
             plagas = None,
             datos_estimados= resultado_dict,
-            tipo_informe = "estimado"
+            tipo_informe = "estimado",
+            parcelas = parcelas_asociadas_cultivo if parcelas_asociadas_cultivo else None,
+            sensores = datos_sensores if datos_sensores else None
         )
 
         return dataclass_to_json(resultado), 200

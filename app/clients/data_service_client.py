@@ -431,3 +431,38 @@ class DataServiceClient(BaseClient):
         except requests.RequestException as e:
             logger.error(f"Se ha producido un error al obtener datos de sensores sobre data-service : {e}")
             return None
+        
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_parcelas_con_cultivos(
+        self,
+        cultivo : str,
+        parcela_id : Optional[str]
+    ):
+        try:
+            if not cultivo:
+                raise ValueError("Error, se debe indicar el nombre del cultivo para obtener las parcelas asociadas")
+            
+            url = f"{self.base_crop_url}/parcel?cultivo={cultivo}"
+
+            if parcela_id:
+                url = url + f"&parcela={parcela_id}"   
+            
+            response = self._make_request(
+                url = url,
+                method = 'GET'
+            )
+
+            if response.status_code == 404:
+                logger.error("No se han encontrado datos de parcelas asociadas al cultivo indicado")
+                return None
+            if response.status_code >= 500:
+                logger.error("Se ha producido un error interno por parte del servicio data-service")
+                return None
+
+            response.raise_for_status()
+
+            return response.json()
+        
+        except Exception as e:
+            logger.error(f"Se ha producido un error obteniendo las parcelas asociadas a un cultivo desde data-service : {e}")
+            return None

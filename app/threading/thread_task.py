@@ -52,7 +52,9 @@ def generar_informe_plagas_background(
     app, 
     plagas : Optional[list],
     tipo_informe : str,
-    datos_estimados : Optional[dict]
+    datos_estimados : Optional[dict],
+    parcelas : Optional[dict],
+    sensores : Optional[list]
 ):
     """
     Lanza en background la generación del informe sobre riesgos de plagas y enfermedades y 
@@ -67,7 +69,7 @@ def generar_informe_plagas_background(
             (FirmaService.generar_firma, ("plagas",), {}),
         ]
     elif tipo_informe == "estimado":
-        pasos = [(InformePlagaEstimadaService.crear_informe_estimado, (datos_estimados,), {}),]
+        pasos = [(InformePlagaEstimadaService.crear_informe_estimado, (datos_estimados, parcelas, sensores, True), {}),]
 
     thread = threading.Thread(
         target = _background_pipeline,

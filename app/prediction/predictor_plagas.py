@@ -233,20 +233,28 @@ class PredictorPlagasService:
                 for plaga_config in plaga_cultivo['plaga']:
 
                     registro_probabilidades = []
-
                     for i in range(delta_dias + 1):
                         dia_actual = fecha_inicio + timedelta(days=i)
 
-                        # Pasar los datos meteorológicos del día específico
-                        datos_meteo_dia = datos_siar_por_fecha.get(dia_actual, {})
+                        # Si se decide evaluar con un algoritmo adhoc, se hace una llamada externa a ese algoritmo
+                        if plaga_config['algoritmo'] == "adhoc" and plaga_config.get('algoritmo_url'):
+                            alerta_dia = EvaluarPlaga.evaluar_algoritmo_externo(
+                                url = plaga_config.get('algoritmo_url'),
+                                datos = datos_por_dia.get(dia_actual, {}),
+                                plaga = plaga_config,
+                                fecha = dia_actual
+                            )
+                        else:
+                            # Pasar los datos meteorológicos del día específico
+                            datos_meteo_dia = datos_siar_por_fecha.get(dia_actual, {})
 
-                        alerta_dia = EvaluarPlaga.evaluar_plaga_generica(
-                            condiciones_evaluables = plaga_config.get('condiciones_evaluables'),
-                            datos_por_dia = datos_por_dia,
-                            fecha_evaluacion = dia_actual,
-                            plaga = plaga_config,
-                            meteo = datos_meteo_dia  # Solo datos del día actual
-                        )
+                            alerta_dia = EvaluarPlaga.evaluar_plaga_generica(
+                                condiciones_evaluables = plaga_config.get('condiciones_evaluables'),
+                                datos_por_dia = datos_por_dia,
+                                fecha_evaluacion = dia_actual,
+                                plaga = plaga_config,
+                                meteo = datos_meteo_dia  # Solo datos del día actual
+                            )
 
                         registro_probabilidades.append({
                             "fecha": dia_actual.strftime('%Y-%m-%d'),
@@ -371,3 +379,21 @@ class PredictorPlagasService:
                 current_app.logger.debug(f"Día {dia}: sin datos disponibles")
         
         return datos_por_dia
+    
+    @classmethod
+    def _obtener_parcelas_asociadas_cultivo(
+        cls,
+        cultivo : str,
+        parcela_id : Optional[str] = None
+    ):
+        """
+        Consulta sobre el servicio de datos para obtener las parcelas 
+        asociadas al cultivo indicado o la parcela exacta 
+        asociada al cultivo
+        
+        :param cultivo : Nombre del cultivo [str]
+        :param parcela_id : Identificador público de la parcla [Optional[str]]
+        """
+        cliente = cls._get_cliente()
+
+        return cliente.get_parcelas_con_cultivos(cultivo, parcela_id)        
