@@ -228,12 +228,12 @@ class InformePlagaService:
         # Como solo usa ITACyL no tengo que meter condiciones
         datos_tabla.append([
             "Servicio público meteorológico (ITACyL)",
-            "Entidad pública dependiente de la Consejería de Agricultura, "
+            "Entidad pública dependiente de la Consejería de Agricultura,\n"
             "Ganaderia y Desarrollo Rural de la Junta de Castilla y León.",
             "Provincia Castilla y León - Datos plagas"
         ])
 
-        col_widths = [1.6 * inch, 3.5 * inch, 1.8 * inch]
+        col_widths = [1.9 * inch, 2.8 * inch, 1.8 * inch]
         tabla = Table(datos_tabla, colWidths = col_widths)
 
         estilo = [
@@ -357,7 +357,7 @@ class InformePlagaService:
         story.append(Spacer(1, 0.2 * inch))
 
         # ====== SECCIÓN FUENTE DATOS =====
-        story.append(Paragraph("FUENTES DE DATOS UTILIZADAS"), estilo_titulo)
+        story.append(Paragraph("FUENTES DE DATOS UTILIZADAS", estilo_titulo))
         story.append(HRFlowable(width = "100%", thickness = 1, color = COLOR_PRIMARIO))
         story.append(Spacer(1, 0.1 * inch))
 
@@ -376,8 +376,8 @@ class InformePlagaService:
             styles
         )
 
-        story.append(elementos_fuentes)
-        story.append(PageBreak())
+        story.extend(elementos_fuentes)
+        story.append(Spacer(1, 0.15 * inch))
 
         # ====== SECCIÓN POR CULTIVO ======
         for idx, cultivo_data in enumerate(datos, start=1):
@@ -449,3 +449,5 @@ class InformePlagaService:
             onFirstPage = InformePlagaService.encabezado_pie,
             onLaterPages = InformePlagaService.encabezado_pie,
         )
+
+        return str(ruta_pdf)

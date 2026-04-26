@@ -68,7 +68,7 @@ class PredictionService():
                     )
         except Exception as e:
             print(f"Ha ocurrido un error con el log de alertas : {e}")
-            return
+            raise
 
     @staticmethod
     def dia_juliano(fecha : date) -> int:

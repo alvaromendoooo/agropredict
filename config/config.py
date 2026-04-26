@@ -12,6 +12,12 @@ class Config():
     DATA_SERVICE_SENSORES_BASE_URL = os.getenv('DATA_SERVICE_SENSORES_BASE_URL')
     DATA_SERVICE_CULTIVOS_BASE_URL = os.getenv('DATA_SERVICE_CULTIVOS_BASE_URL')
 
+    SWAGGER_URL = '/api/v1/ui'
+    API_URL = '/api/v1/swagger.json'
+
+    SERVICE_NAME = 'Frost Predictor API'
+    SERVICE_VERSION = '1.0.0'
+
     """
         Debido a que el sistema se encuentra en un entorno de desarrollo 
         y no dispone todavía de un histórico climatológico suficientemente amplio, 

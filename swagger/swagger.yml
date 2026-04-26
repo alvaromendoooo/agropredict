@@ -1,0 +1,850 @@
+openapi: 3.0.3
+info:
+  title: Frost Predictor API
+  description: API de predicción de riesgos agrícolas (heladas y plagas)
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5000
+    description: Servidor de desarrollo
+
+tags:
+  - name: Heladas
+    description: Endpoints de predicción de riesgos de heladas
+  - name: Plagas
+    description: Endpoints de predicción de riesgos de plagas
+
+paths:
+
+  /heladas/observadas/{tipo}:
+    post:
+      tags:
+        - Heladas
+      summary: Predicción de heladas observadas
+      description: >
+        Obtiene la predicción de riesgo de helada basada en datos históricos observados
+        de los últimos 6 meses. Requiere indicar province O estacion, nunca ambos.
+      parameters:
+        - name: tipo
+          in: path
+          required: true
+          description: Granularidad temporal de los datos históricos solicitados
+          schema:
+            type: string
+            enum: [hora, dia, semana]
+        - name: format
+          in: query
+          required: false
+          description: Formato de respuesta. Si se indica pdf se devuelve informe firmado digitalmente
+          schema:
+            type: string
+            enum: [json, pdf]
+            default: json
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                province:
+                  type: string
+                  description: Código de provincia (excluyente con estacion)
+                  example: "CC"
+                estacion:
+                  type: string
+                  description: Código de estación meteorológica (excluyente con province)
+                  example: "4452X"
+                evaluacion:
+                  type: string
+                  description: Incluir evaluación de riesgo por variedades de cultivo
+                  enum: ["true", "false", "1", "0", "yes", "si"]
+                  default: "false"
+                variedades:
+                  type: string
+                  description: Nombres de variedades separados por coma (requerido si evaluacion=true)
+                  example: "merlot, tempranillo"
+            examples:
+              sinEvaluacion:
+                summary: Petición básica por provincia
+                value:
+                  province: "CC"
+                  evaluacion: "false"
+              conEvaluacionVariedades:
+                summary: Petición con evaluación de variedades
+                value:
+                  province: "CC"
+                  evaluacion: "true"
+                  variedades: "merlot, tempranillo"
+      responses:
+        "200":
+          description: Predicción de heladas observadas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiesgoHeladaObservadaDTO'
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+                description: Informe PDF firmado digitalmente
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+
+  /heladas/futuras/{zona}:
+    post:
+      tags:
+        - Heladas
+      summary: Predicción de heladas futuras por zona
+      description: >
+        Obtiene la predicción de riesgo de heladas futuras (mañana) para una zona geográfica.
+        Permite filtrar por provincia O comunidad autónoma. Opcionalmente evalúa variedades
+        de cultivo y/o localidades específicas.
+      parameters:
+        - name: zona
+          in: path
+          required: true
+          description: Ámbito geográfico de la predicción
+          schema:
+            type: string
+            enum: [provincial, ccaa, nacional]
+          example: provincial
+        - name: format
+          in: query
+          required: false
+          description: Formato de respuesta. Si se indica pdf se devuelve informe firmado digitalmente
+          schema:
+            type: string
+            enum: [json, pdf]
+            default: json
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                provinciaId:
+                  type: string
+                  description: ID de la provincia (excluyente con ccaaId)
+                  example: "CC"
+                ccaaId:
+                  type: string
+                  description: ID de la comunidad autónoma (excluyente con provinciaId)
+                  example: "11"
+                evaluacion_var:
+                  type: boolean
+                  description: Incluir evaluación de riesgo sobre variedades de cultivo
+                  default: false
+                evaluacion_loc:
+                  type: boolean
+                  description: Incluir evaluación de riesgo por localidades
+                  default: false
+                variedades:
+                  type: array
+                  description: Lista de variedades a evaluar (requerido si evaluacion_var=true)
+                  items:
+                    type: string
+                  example: ["merlot", "tempranillo"]
+                localidades:
+                  type: array
+                  description: Lista de localidades a evaluar (requerido si evaluacion_loc=true)
+                  items:
+                    type: string
+                  example: ["plasencia", "cáceres"]
+            examples:
+              soloZona:
+                summary: Predicción básica por provincia
+                value:
+                  provinciaId: "CC"
+              conVariedades:
+                summary: Con evaluación de variedades
+                value:
+                  provinciaId: "CC"
+                  evaluacion_var: true
+                  variedades: ["merlot", "tempranillo"]
+              conLocalidades:
+                summary: Con evaluación de localidades
+                value:
+                  provinciaId: "CC"
+                  evaluacion_loc: true
+                  localidades: ["plasencia", "cáceres"]
+      responses:
+        "200":
+          description: Predicción de heladas futuras
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiesgoHeladaFuturaDTO'
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+                description: Informe PDF firmado digitalmente
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+
+  /plagas/calculadas:
+    post:
+      tags:
+        - Plagas
+      summary: Predicción de riesgo de plagas calculadas
+      description: >
+        Obtiene el riesgo de plagas para la semana actual basándose en un calendario
+        de alertas precalculado por ITACYL. No requiere datos climáticos en tiempo real.
+        Devuelve una lista de RiesgoPlagaCultivoDTO con todas las plagas asociadas al cultivo.
+      parameters:
+        - name: cultivo
+          in: query
+          required: true
+          description: Nombre del cultivo a analizar
+          schema:
+            type: string
+          example: "vid"
+        - name: format
+          in: query
+          required: false
+          description: Formato de respuesta. Si se indica pdf se devuelve informe firmado digitalmente
+          schema:
+            type: string
+            enum: [json, pdf]
+            default: json
+      responses:
+        "200":
+          description: Lista de riesgos de plagas calculados para el cultivo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RiesgoPlagaCultivoDTO'
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+                description: Informe PDF firmado digitalmente
+        "400":
+          description: Parámetro cultivo no indicado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Invalid parameters"
+                status: 400
+                error: "Se debe indicar el valor de un query param : cultivo"
+        "404":
+          description: No se encontraron datos para el cultivo indicado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Data Not Found"
+                status: 404
+                error: "No se han encontrado datos para hacer la predicción de riesgos de plagas frente al cultivo : vid"
+        "500":
+          $ref: '#/components/responses/InternalError'
+
+  /plagas/estimadas:
+    post:
+      tags:
+        - Plagas
+      summary: Predicción de riesgo de plagas estimadas
+      description: >
+        Obtiene la predicción de riesgo de plagas estimada para un cultivo en un rango
+        de fechas, combinando datos de sensores IoT DTAgro con datos meteorológicos del SiAR.
+        Los sensores tienen prioridad sobre los datos del SiAR.
+        Devuelve la evaluación día a día de cada plaga en el período indicado.
+      parameters:
+        - name: format
+          in: query
+          required: false
+          description: Formato de respuesta. Si se indica pdf se devuelve informe firmado digitalmente
+          schema:
+            type: string
+            enum: [json, pdf]
+            default: json
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - cultivo
+                - fecha_inicio
+                - fecha_fin
+              properties:
+                cultivo:
+                  type: string
+                  description: Nombre del cultivo a analizar
+                  example: "vid"
+                fecha_inicio:
+                  type: string
+                  format: date-time
+                  description: Inicio del período de evaluación (ISO 8601)
+                  example: "2025-04-01T00:00:00Z"
+                fecha_fin:
+                  type: string
+                  format: date-time
+                  description: Fin del período de evaluación (ISO 8601)
+                  example: "2025-04-30T00:00:00Z"
+                datos_sensores:
+                  type: array
+                  description: >
+                    Lista de EUIs de sensores IoT DTAgro a consultar.
+                    Si se omite se usarán exclusivamente datos del SiAR.
+                  items:
+                    type: string
+                  example: ["0004A30B00E9A1B2", "0004A30B00E9A1C3"]
+                parcela:
+                  type: string
+                  description: ID público de la parcela para contextualizar el cálculo (opcional)
+                  example: "PARC-001"
+            examples:
+              soloSiAR:
+                summary: Sin sensores, usa datos SiAR
+                value:
+                  cultivo: "vid"
+                  fecha_inicio: "2025-04-01T00:00:00Z"
+                  fecha_fin: "2025-04-30T00:00:00Z"
+              conSensores:
+                summary: Con sensores IoT y parcela
+                value:
+                  cultivo: "vid"
+                  fecha_inicio: "2025-04-01T00:00:00Z"
+                  fecha_fin: "2025-04-30T00:00:00Z"
+                  datos_sensores: ["0004A30B00E9A1B2"]
+                  parcela: "PARC-001"
+      responses:
+        "200":
+          description: Predicción estimada de plagas día a día
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiesgoPlagaEstimadaDTO'
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+                description: Informe PDF firmado digitalmente
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+
+components:
+
+  responses:
+    BadRequest:
+      description: Parámetros de la petición inválidos
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: Error interno del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Error interno del servidor"
+            status: 500
+            error: "Internal server error"
+
+  schemas:
+
+    # Genéricos
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        status:
+          type: integer
+        error:
+          type: string
+
+    NivelRiesgo:
+      type: string
+      enum: [sin_riesgo, debil, moderada, fuerte]
+
+    TipoAlerta:
+      type: string
+      enum: [informativa, preventiva, critica, sin_riesgo]
+
+    TipoPrecision:
+      type: string
+      enum: [alta, media, baja]
+
+    TipoResultado:
+      type: string
+      enum: [prediccion, estimacion]
+
+    TipoDato:
+      type: string
+      enum: [actuales, futuros, historicos]
+
+    AlertaDTO:
+      type: object
+      properties:
+        mensaje:
+          type: string
+          example: "Riesgo de helada negra detectado"
+        recomendacion:
+          type: string
+          nullable: true
+          example: "Activar sistemas de protección antihelada"
+        nivel:
+          $ref: '#/components/schemas/TipoAlerta'
+
+    ContextoCalculoDTO:
+      type: object
+      properties:
+        tipos_datos:
+          type: array
+          items:
+            $ref: '#/components/schemas/TipoDato'
+        prediccion_o_estimacion:
+          $ref: '#/components/schemas/TipoResultado'
+        fuente:
+          type: array
+          items:
+            type: string
+          example: ["AEMET"]
+        fecha_generacion:
+          type: string
+          format: date-time
+
+    # Heladas
+    UmbralesCultivoDTO:
+      type: object
+      properties:
+        critico:
+          type: number
+          format: float
+          example: -2.0
+        alto:
+          type: number
+          format: float
+          example: 0.0
+        moderado:
+          type: number
+          format: float
+          example: 1.6
+        bajo:
+          type: number
+          format: float
+          example: 3.0
+
+    AnalisisCultivoDTO:
+      type: object
+      properties:
+        variedad:
+          type: string
+          example: "Merlot"
+        nombre_cientifico:
+          type: string
+          example: "Vitis vinifera L."
+        etapa_fenologica:
+          type: string
+          example: "Brotación"
+        temperatura_evaluada:
+          type: string
+          example: "-1.5°C"
+        porcentaje_riesgo:
+          type: number
+          format: float
+          example: 78.5
+        nivel_riesgo:
+          type: string
+          example: "fuerte"
+        umbrales:
+          $ref: '#/components/schemas/UmbralesCultivoDTO'
+        alertas:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertaDTO'
+
+    ResumenCultivoDTO:
+      type: object
+      properties:
+        total_variedades_evaluados:
+          type: integer
+          example: 3
+        variedades_en_riesgo_critico:
+          type: integer
+          example: 1
+        variedades_en_riesgo_alto:
+          type: integer
+          example: 1
+        variedades_en_riesgo_moderado:
+          type: integer
+          example: 0
+        variedades_en_riesgo_debil:
+          type: integer
+          example: 1
+        variedades_sin_riesgo:
+          type: integer
+          example: 0
+        evaluaciones:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalisisCultivoDTO'
+
+    CotaNieveDTO:
+      type: object
+      properties:
+        cota_minima:
+          type: integer
+          example: 800
+        cota_maxima:
+          type: integer
+          example: 1200
+        hay_descenso:
+          type: boolean
+          example: true
+        texto_original:
+          type: string
+          example: "Cota de nieve bajando a 800-1200 metros"
+
+    AnalisisLocalidadDTO:
+      type: object
+      properties:
+        localidad:
+          type: string
+          example: "Plasencia"
+        provincia:
+          type: string
+          example: "Cáceres"
+        altitud_metros:
+          type: integer
+          example: 355
+        temperatura_minima:
+          type: integer
+          nullable: true
+          example: -1
+        temperatura_maxima:
+          type: integer
+          nullable: true
+          example: 8
+        nivel_riesgo:
+          type: string
+          example: "moderada"
+        resumen:
+          type: string
+          example: "Riesgo moderado por altitud y temperatura mínima prevista"
+        recomendaciones:
+          type: array
+          items:
+            type: string
+          example: ["Proteger cultivos sensibles", "Vigilar temperatura nocturna"]
+        porcentaje_riesgo:
+          type: number
+          format: float
+          example: 55.0
+        cota_nieve:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/CotaNieveDTO'
+
+    ResumenEvaluacionLocalidadDTO:
+      type: object
+      properties:
+        total_localidades_evaluadas:
+          type: integer
+          example: 5
+        localidades_riesgo_critico:
+          type: integer
+          example: 0
+        localidades_riesgo_alto:
+          type: integer
+          example: 1
+        localidades_riesgo_moderado:
+          type: integer
+          example: 2
+        localidades_riesgo_bajo:
+          type: integer
+          example: 1
+        localidades_sin_riesgo:
+          type: integer
+          example: 1
+        evaluaciones:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalisisLocalidadDTO'
+
+    RiesgoHeladaTipoDTO:
+      type: object
+      description: Registro de un punto de medición para helada blanca o negra
+      properties:
+        humedad:
+          type: number
+          format: float
+          example: 82.3
+        temperatura:
+          type: number
+          format: float
+          example: -0.5
+        timestamp:
+          type: string
+          format: date-time
+        estacion_id_temp:
+          type: integer
+          example: 4452
+        estacion_id_hum:
+          type: array
+          items:
+            type: integer
+          example: [4452, 4453]
+
+    RegistroTempMinDTO:
+      type: object
+      properties:
+        dias_bajo_cero:
+          type: integer
+          example: 12
+        temperatura_minima_registrada:
+          type: number
+          format: float
+          example: -3.2
+        fecha_temp_bajo_cero:
+          type: array
+          items:
+            type: string
+            format: date
+          example: ["2025-01-15", "2025-02-03"]
+
+    DatoAEMETDTO:
+      type: object
+      description: Datos textuales del boletín meteorológico de AEMET
+      properties:
+        estado_cielo:
+          type: string
+          nullable: true
+          example: "Despejado con nubes altas"
+        tendencia_temp_general:
+          type: string
+          nullable: true
+        tendencia_temp_maxima:
+          type: string
+          nullable: true
+        tendencia_temp_minima:
+          type: string
+          nullable: true
+        rachas_viento:
+          type: string
+          nullable: true
+        precipitaciones:
+          type: string
+          nullable: true
+        cotas_nieve:
+          type: string
+          nullable: true
+        existencia_heladas:
+          type: string
+          nullable: true
+          example: "Posibles heladas en cotas superiores a 800m"
+        zona_heladas:
+          type: string
+          nullable: true
+        aparicion_nieblas:
+          type: string
+          nullable: true
+
+    RiesgoHeladaObservadaDTO:
+      type: object
+      description: Resultado de predicción de heladas basada en datos históricos observados
+      properties:
+        nivel:
+          $ref: '#/components/schemas/NivelRiesgo'
+        comentarios:
+          type: string
+          example: "Riesgo moderado detectado en base a registros de los últimos 6 meses"
+        alertas:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertaDTO'
+        contexto:
+          $ref: '#/components/schemas/ContextoCalculoDTO'
+        tipo_prediccion:
+          type: string
+          enum: [hoy, manana, pasadomanana]
+        evaluaciones_variedades:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/ResumenCultivoDTO'
+        riesgos_heladas_blancas:
+          type: array
+          items:
+            $ref: '#/components/schemas/RiesgoHeladaTipoDTO'
+        riesgos_heladas_negras:
+          type: array
+          items:
+            $ref: '#/components/schemas/RiesgoHeladaTipoDTO'
+        fecha_comiezo_registros:
+          type: string
+          format: date
+          example: "2024-10-26"
+        fecha_fin_registros:
+          type: string
+          format: date
+          example: "2025-04-26"
+        registro_temperatura_minima:
+          $ref: '#/components/schemas/RegistroTempMinDTO'
+
+    RiesgoHeladaFuturaDTO:
+      type: object
+      description: Resultado de predicción de heladas basada en datos futuros de AEMET
+      properties:
+        nivel:
+          $ref: '#/components/schemas/NivelRiesgo'
+        comentarios:
+          type: string
+          example: "Predicción para mañana. Se evaluaron 3 variedades de cultivo."
+        alertas:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertaDTO'
+        contexto:
+          $ref: '#/components/schemas/ContextoCalculoDTO'
+        tipo_prediccion:
+          type: string
+          enum: [hoy, manana, pasadomanana]
+        evaluaciones_variedades:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/ResumenCultivoDTO'
+        riesgos_heladas_blancas:
+          type: array
+          items:
+            $ref: '#/components/schemas/RiesgoHeladaTipoDTO'
+        riesgos_heladas_negras:
+          type: array
+          items:
+            $ref: '#/components/schemas/RiesgoHeladaTipoDTO'
+        precision:
+          $ref: '#/components/schemas/TipoPrecision'
+        datos_meteorologicos:
+          $ref: '#/components/schemas/DatoAEMETDTO'
+        evaluacion_localidades:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/ResumenEvaluacionLocalidadDTO'
+
+    # Plagas
+    CultivoDTO:
+      type: object
+      properties:
+        nombre:
+          type: string
+          example: "Vid"
+        grupo:
+          type: string
+          example: "Frutales"
+
+    PlagaDTO:
+      type: object
+      description: Plaga con nivel de riesgo calculado para la semana actual
+      properties:
+        nombre:
+          type: string
+          example: "Polilla del racimo"
+        agente_causante:
+          type: string
+          example: "Lobesia botrana"
+        momento_critico:
+          type: string
+          example: "Floración y envero"
+        observaciones:
+          type: string
+          example: "Mayor incidencia en zonas cálidas y secas"
+        mas_info:
+          type: string
+          example: "https://www.itacyl.es/plagas/polilla-racimo"
+        tipo:
+          type: string
+          example: "Insecto"
+        nivel_riesgo:
+          type: string
+          enum: [BAJA, MEDIA, ALTA]
+          example: "ALTA"
+
+    RiesgoPlagaCultivoDTO:
+      type: object
+      description: Riesgo de plagas calculado para un cultivo en la semana actual
+      properties:
+        cultivo:
+          $ref: '#/components/schemas/CultivoDTO'
+        plagas:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlagaDTO'
+
+    RegistroProbabilidadDiaDTO:
+      type: object
+      description: Evaluación del riesgo de una plaga para un día concreto
+      properties:
+        fecha:
+          type: string
+          format: date
+          example: "2025-04-15"
+        nivel_riesgo:
+          $ref: '#/components/schemas/TipoAlerta'
+        mensaje:
+          type: string
+          example: "Condiciones favorables para el desarrollo de la plaga"
+        condiciones_cumplidas:
+          type: array
+          items:
+            type: string
+          example: ["temperatura_media > 15", "humedad_relativa > 70"]
+        condiciones_pendientes:
+          type: array
+          items:
+            type: string
+          example: ["precipitacion < 2"]
+
+    PlagaEvaluadaDTO:
+      type: object
+      description: Evaluación día a día de una plaga en el período solicitado
+      properties:
+        plaga_id:
+          type: string
+          example: "PLG-001"
+        nombre:
+          type: string
+          example: "Polilla del racimo"
+        tipo:
+          type: string
+          example: "Insecto"
+        datos_probabilidad:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegistroProbabilidadDiaDTO'
+
+    RiesgoPlagaEstimadaDTO:
+      type: object
+      description: Resultado de predicción estimada de plagas para un cultivo en un rango de fechas
+      properties:
+        cultivo:
+          type: string
+          example: "vid"
+        fecha_inicio:
+          type: string
+          format: date
+          example: "2025-04-01"
+        fecha_final:
+          type: string
+          format: date
+          example: "2025-04-30"
+        plagas_evaluadas:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlagaEvaluadaDTO'

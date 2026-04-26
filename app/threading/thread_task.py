@@ -8,26 +8,35 @@ logger = logging.getLogger()
 
 def _background_pipeline(
     app, 
-    pasos : list[tuple]
+    pasos: list[tuple],
+    pdf_queue=None,
 ):
-    """
-    Ejecuta una lista de (func, args, kwargs) en secuencia dentro del mismo contexto de aplicación.
-    Si un paso falla los siguientes se omiten.
-    """
     with app.app_context():
+        resultado = None
         for func, args, kwargs in pasos:
             try:
                 logger.info(f"Ejecutando paso: {func.__name__}")
-                func(*args, **kwargs)
+                # Si args es un callable, lo ejecutamos para obtener los args reales
+                # Esto permite inyectar el resultado del paso anterior
+                args_resueltos = args(resultado) if callable(args) else args
+                resultado = func(*args_resueltos, **kwargs)
             except Exception as e:
                 logger.error(f"Fallo en el paso: {func.__name__} : {e}")
+                if pdf_queue is not None:
+                    pdf_queue.put(None)
                 break
+        else:
+            if pdf_queue is not None:
+                pdf_queue.put(resultado)
 
 def generar_informe_heladas_background(
     app,
     datos_prediccion : dict,
     acumular : bool,
-    is_cultivo : bool
+    is_cultivo : bool,
+    zona : Optional[str],
+    provincia : Optional[str],
+    pdf_queue = None
 ):
     """
     Lanza en background la generación del informe y su firma digital.
@@ -36,13 +45,13 @@ def generar_informe_heladas_background(
     from ..informe.form_frost_generator import InformeHeladaService
 
     pasos = [
-        (InformeHeladaService.crear_informe, (datos_prediccion,acumular,is_cultivo,), {}),
-        (FirmaService.generar_firma, ("heladas",),{}),
+        (InformeHeladaService.crear_informe, (datos_prediccion,acumular,is_cultivo,zona,provincia), {}),
+        (FirmaService.generar_firma, lambda ruta: ("heladas", None, ruta),{}),
     ]
 
     thread = threading.Thread(
         target=_background_pipeline,
-        args=(app, pasos),
+        args=(app, pasos, pdf_queue),
         daemon=True
     )
 
@@ -54,7 +63,8 @@ def generar_informe_plagas_background(
     tipo_informe : str,
     datos_estimados : Optional[dict],
     parcelas : Optional[dict],
-    sensores : Optional[list]
+    sensores : Optional[list],
+    pdf_queue = None,
 ):
     """
     Lanza en background la generación del informe sobre riesgos de plagas y enfermedades y 
@@ -66,14 +76,17 @@ def generar_informe_plagas_background(
     if tipo_informe == "calculado":
         pasos = [
             (InformePlagaService.crear_informe, (plagas), {}),
-            (FirmaService.generar_firma, ("plagas",), {}),
+            (FirmaService.generar_firma, lambda ruta: ("plagas", None, ruta), {}),
         ]
     elif tipo_informe == "estimado":
-        pasos = [(InformePlagaEstimadaService.crear_informe_estimado, (datos_estimados, parcelas, sensores, True), {}),]
+        pasos = [
+            (InformePlagaEstimadaService.crear_informe_estimado, (datos_estimados, parcelas, sensores, True), {}),
+            (FirmaService.generar_firma, lambda ruta: ("plagas", datos_estimados, ruta), {}),    
+        ]
 
     thread = threading.Thread(
         target = _background_pipeline,
-        args = (app, pasos),
+        args = (app, pasos, pdf_queue),
         daemon = True
     )
     thread.start()

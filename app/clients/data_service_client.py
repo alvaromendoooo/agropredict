@@ -184,7 +184,6 @@ class DataServiceClient(BaseClient):
             url = f"{self.base_crop_url}/variedades"
 
             if cultivo:
-                print("entro")
                 url += f"?cultivo={cultivo}"
             
             response = self._make_request(

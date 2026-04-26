@@ -7,6 +7,7 @@ from reportlab.graphics.charts.linecharts import HorizontalLineChart
 from reportlab.graphics.shapes import Drawing
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Optional
 import os
 import json
 
@@ -150,10 +151,31 @@ class InformeHeladaService():
         lc.joinedLines = 1
         lc.fillColor = colors.white
         lc.categoryAxis.categoryNames = fechas
-        lc.categoryAxis.labels.boxAnchor = 'n'
         lc.valueAxis.valueMin = 0
         lc.valueAxis.valueMax = 100
         lc.valueAxis.valueSteps = [5, 15, 25, 50, 75, 100]
+
+        # Rotar las etiquetas 45 grados para que no se solapen
+        lc.categoryAxis.labels.angle = 45
+
+        # Anclar la etiqueta por su esquina superior derecha tras la rotación
+        lc.categoryAxis.labels.boxAnchor = 'e'
+
+        # Reducir el tamaño de la fuente
+        lc.categoryAxis.labels.fontSize = 6
+
+        # Desplazar las etiquetas hacia abajo para que no choquen con el eje
+        lc.categoryAxis.labels.dy = -10
+
+        # Separación mínima entre etiquetas (muestra una de cada N si no caben)
+        paso = max(1, len(fechas) // 7)
+
+        fechas_mostrar = [
+            fecha if i % paso == 0 else ""
+            for i, fecha in enumerate(fechas)
+        ]
+
+        lc.categoryAxis.categoryNames = fechas_mostrar
 
 
         from reportlab.graphics.charts.legends import LineLegend
@@ -277,35 +299,37 @@ class InformeHeladaService():
     
     @staticmethod
     def encabezado_pie(canvas_obj, doc):
-        """
-        Dibuja el encabezado y el pie de pagina definido en cada una de las páginas del documento.
-        """
         canvas_obj.saveState()
         ancho, alto = letter
 
-        #=== DEFINICION DEL ENCABEZADO ===#
         canvas_obj.setFillColor(COLOR_PRIMARIO)
-        canvas_obj.rect(0, alto - 60, ancho, 60, fill=True, stroke=False)
+        canvas_obj.rect(0, alto - 70, ancho, 70, fill=True, stroke=False)  # ← más alto para caber más info
 
         canvas_obj.setFillColor(colors.white)
         canvas_obj.setFont("Helvetica-Bold", 14)
-        canvas_obj.drawString(1 * inch, alto - 30, TITULO_INFORME)
-
-        canvas_obj.setFont("Helvetica", 10)
-        canvas_obj.drawString(1 * inch, alto - 40, SUBTITULO)
+        canvas_obj.drawString(1 * inch, alto - 25, TITULO_INFORME)
 
         canvas_obj.setFont("Helvetica", 9)
-        canvas_obj.drawRightString(ancho - 1 * inch, alto - 30, f"Actualización: {FECHA}")
-        
-        # Mostrar número de entradas históricas
+        canvas_obj.drawString(1 * inch, alto - 38, SUBTITULO)
+
+        # Fuentes de datos en la cabecera
+        canvas_obj.setFont("Helvetica", 7)
+        canvas_obj.drawString(1 * inch, alto - 50, "Fuentes: AEMET (predicción futura) · SiAR-Extremadura (datos históricos)")
+
+        canvas_obj.setFont("Helvetica", 9)
+        canvas_obj.drawRightString(ancho - 1 * inch, alto - 25, f"Actualización: {FECHA}")
+
         if hasattr(doc, 'total_entradas'):
-            canvas_obj.drawRightString(ancho - 1 * inch, alto - 48, f"Registros: {doc.total_entradas}")
+            canvas_obj.drawRightString(ancho - 1 * inch, alto - 38, f"Registros: {doc.total_entradas}")
+
+        if hasattr(doc, 'zona_geografica'):
+            canvas_obj.drawRightString(ancho - 1 * inch, alto - 50, f"Zona: {doc.zona_geografica}")
 
         canvas_obj.setStrokeColor(COLOR_SECUNDARIO)
         canvas_obj.setLineWidth(2)
-        canvas_obj.line(0.75 * inch, alto - 65, ancho - 0.75 * inch, alto - 65)
+        canvas_obj.line(0.75 * inch, alto - 75, ancho - 0.75 * inch, alto - 75)
 
-        #=== PIE DE PAGINA ===#
+        # Pie de página (sin cambios)
         canvas_obj.setStrokeColor(COLOR_PRIMARIO)
         canvas_obj.setLineWidth(1)
         canvas_obj.line(0.75 * inch, 45, ancho - 0.75 * inch, 45)
@@ -323,10 +347,82 @@ class InformeHeladaService():
         canvas_obj.restoreState()
 
     @staticmethod
+    def _crear_seccion_contexto(metadata: dict, zona: str, provincia: str, styles) -> list:
+        """
+        Genera la sección de contexto inicial del informe: zona geográfica,
+        fuentes de datos y período cubierto.
+        """
+        elementos = []
+
+        estilo_normal = ParagraphStyle(
+            "NormalContexto", parent=styles["Normal"],
+            fontSize=9, leading=13, spaceAfter=4
+        )
+
+        # Tabla de contexto geográfico y fuentes
+        datos_contexto = [
+            ["Campo", "Detalle"],
+            ["Zona geográfica", zona or "No especificada"],
+            ["Provincia / Código", provincia or "No especificada"],
+            ["Fuente datos históricos", "SiAR — Red de estaciones agrometeorológicas de Extremadura"],
+            ["Fuente datos futuros", "AEMET — Agencia Estatal de Meteorología"],
+            ["Tipo de predicción histórica", "Datos observados por estaciones (temperatura, HR, precipitación, viento)"],
+            ["Tipo de predicción futura", "Predicción numérica a corto plazo (24-48h) por municipio o provincia"],
+            ["Período cubierto", (
+                f"{min(metadata['fechas_incluidas'])} → {max(metadata['fechas_incluidas'])}"
+                if metadata.get('fechas_incluidas') else "Sin datos aún"
+            )],
+            ["Última actualización", (
+                datetime.fromisoformat(metadata['ultima_actualizacion']).strftime('%d/%m/%Y %H:%M')
+                if metadata.get('ultima_actualizacion') else "—"
+            )],
+        ]
+
+        col_widths = [2.2 * inch, 4.3 * inch]
+        tabla = Table(datos_contexto, colWidths=col_widths)
+        tabla.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), COLOR_PRIMARIO),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 8),
+            ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
+            ("FONTNAME", (1, 1), (1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 1), (-1, -1), 8),
+            ("BACKGROUND", (0, 1), (-1, -1), COLOR_FONDO_TABLA),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [COLOR_FONDO_TABLA, colors.white]),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
+            ("BOX", (0, 0), (-1, -1), 1, COLOR_PRIMARIO),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+
+        elementos.append(tabla)
+        elementos.append(Spacer(1, 0.15 * inch))
+
+        # Nota explicativa sobre las fuentes
+        nota = (
+            "<b>Nota sobre las fuentes:</b> Los datos históricos proceden de la red SiAR, con mediciones "
+            "reales de estaciones instaladas en la provincia. Los datos futuros provienen de los modelos "
+            "numéricos de AEMET y tienen un horizonte de predicción de 24 a 48 horas. Ambas fuentes se "
+            "combinan en este informe para ofrecer una visión completa del riesgo de helada."
+        )
+        elementos.append(Paragraph(nota, ParagraphStyle(
+            "NotaFuentes", parent=styles["Normal"],
+            fontSize=7, textColor=colors.grey, leading=10
+        )))
+
+        return elementos
+
+    @staticmethod
     def crear_informe(
         predicciones: dict, 
         acumular: bool = True, 
-        is_cultivo : bool = True):
+        is_cultivo : bool = True,
+        zona : Optional[str] = None, 
+        provinicia : Optional[str] = None):
         """
         Crea o actualiza un informe acumulativo de predicciones
         
@@ -465,6 +561,21 @@ class InformeHeladaService():
         story.append(HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO))
         story.append(Spacer(1, 0.2 * inch))
         
+        # === SECCIÓN FUENTES DE DATOS === #
+        story.append(Paragraph("FUENTES DE DATOS UTILIZADAS", estilo_titulo))
+        story.append(HRFlowable(width = "100%", thickness = 1, color = COLOR_PRIMARIO))
+        story.append(Spacer(1, 0.1 * inch))
+
+        elementos_fuente = InformeHeladaService._crear_seccion_contexto(
+            metadata = metadata,
+            zona = zona,
+            provincia = provinicia,
+            styles = styles
+        )
+
+        story.extend(elementos_fuente)
+        story.append(Spacer(1, 0.08 * inch))
+
         # === TABLA HISTÓRICA ===
         story.append(Paragraph("1. HISTORIAL DE PREDICCIONES", estilo_titulo))
         story.append(HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO))
@@ -528,3 +639,5 @@ class InformeHeladaService():
         print(f"Informe acumulativo actualizado: {NOMBRE_ARCHIVO}")
         print(f"Total registros: {metadata['total_entradas']}")
         print(f"Fechas incluidas: {len(metadata['fechas_incluidas'])}")
+
+        return str(ruta_pdf)

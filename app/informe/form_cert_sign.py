@@ -8,6 +8,8 @@ from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from datetime import date
 from pathlib import Path
 from dotenv import load_dotenv
+from typing import Optional
+from datetime import datetime
 
 import os
 
@@ -15,23 +17,36 @@ load_dotenv()
 
 class FirmaService():
     def generar_firma(
-        tipo_prediccion : str
+        tipo_prediccion : str,
+        datos_estimados : Optional[dict] = None,
+        ruta_pdf : Optional[str] = None,
     ):
 
-        hoy = date.today()
-        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
         BASE_DIR = Path(__file__).resolve().parent
         INFORME_DIR = BASE_DIR
         CREDENCIALES_DIR = BASE_DIR / 'assets'
 
-
+        """
         nombre_archivo = None
         if tipo_prediccion == "heladas":
             nombre_archivo = "reporte_riesgos_heladas_acumulado.pdf"
         elif tipo_prediccion == "plagas":
-            nombre_archivo = "reporte_riesgos_plagas.pdf"
+            if datos_estimados:
+                cultivo = datos_estimados.get('cultivo', 'desconocido').lower()
+                nombre_archivo = f"reporte_riesgos_{cultivo}_{timestamp}.pdf"
+            else:
+                nombre_archivo = "reporte_riesgos_plagas.pdf"
 
-        ruta_pdf = INFORME_DIR / 'reports' / nombre_archivo
+        if nombre_archivo is None:
+            raise ValueError(f"tipo_prediccion '{tipo_prediccion}' no reconocido")
+
+        """
+        #ruta_pdf = INFORME_DIR / 'reports' / nombre_archivo
+        ruta_pdf = Path(ruta_pdf)
+        if not ruta_pdf.exists():
+            raise FileNotFoundError(f"No se encontró el pdf en : {ruta_pdf}")
 
         password = os.getenv("PASSWORD_CERTIFICADO")
 
@@ -62,8 +77,17 @@ class FirmaService():
             )
 
             if tipo_prediccion == "heladas":
-                with open(INFORME_DIR / 'reports' / 'heladas' / f"reporte_heladas_firmado_{hoy}.pdf", "wb") as outf:
+                ruta = INFORME_DIR / 'reports' / 'heladas' / f"reporte_heladas_firmado_{timestamp}.pdf"
+                with open(ruta, "wb") as outf:
                     pdf_signer.sign_pdf(w, output=outf)
             elif tipo_prediccion == "plagas":
-                with open(INFORME_DIR / 'reports' / 'plagas' / f"reporte_plagas_firmado_{hoy}.pdf", "wb") as outf:
-                    pdf_signer.sign_pdf(w, output=outf)
+                if datos_estimados:
+                    ruta = INFORME_DIR / 'reports' / 'plagas' / f"reporte_plagas_{datos_estimados['cultivo']}_firmado_{timestamp}.pdf"
+                    with open(ruta, "wb") as outf:
+                        pdf_signer.sign_pdf(w, output=outf)
+                else:
+                    ruta = INFORME_DIR / 'reports' / 'plagas' / f"reporte_plagas_calculadas_firmado_{timestamp}.pdf"
+                    with open(ruta, "wb") as outf:
+                        pdf_signer.sign_pdf(w, output=outf)
+
+        return str(os.path.abspath(ruta))
