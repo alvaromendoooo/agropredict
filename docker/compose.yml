@@ -169,6 +169,19 @@ services:
       - broker
     restart: unless-stopped
 
+  predictors:
+    image: mendo1/agro-predict:predictors-1.0
+    container_name: predictors
+    env_file:
+      - .env
+    ports:
+      - "10000:10000"
+    depends_on:
+      - data-service
+    networks:
+      - broker
+    restart: unless-stopped
+
   keycloak_postgres:
     container_name: keycloak_postgres
     image: postgres:16
