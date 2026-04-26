@@ -65,6 +65,19 @@ services:
     ports:
       - "8087:8087"
     restart: unless-stopped
+  
+  predictors:
+    image: mendo1/agro-predict:predictors-1.0
+    container_name: predictors
+    env_file:
+      - .env
+    ports:
+      - "10000:10000"
+    depends_on:
+      - data-service
+    networks:
+      - broker
+    restart: unless-stopped
 
   data-service:
     image: mendo1/agro-predict:data-service-0.1
