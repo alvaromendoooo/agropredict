@@ -28,22 +28,6 @@ class FirmaService():
         INFORME_DIR = BASE_DIR
         CREDENCIALES_DIR = BASE_DIR / 'assets'
 
-        """
-        nombre_archivo = None
-        if tipo_prediccion == "heladas":
-            nombre_archivo = "reporte_riesgos_heladas_acumulado.pdf"
-        elif tipo_prediccion == "plagas":
-            if datos_estimados:
-                cultivo = datos_estimados.get('cultivo', 'desconocido').lower()
-                nombre_archivo = f"reporte_riesgos_{cultivo}_{timestamp}.pdf"
-            else:
-                nombre_archivo = "reporte_riesgos_plagas.pdf"
-
-        if nombre_archivo is None:
-            raise ValueError(f"tipo_prediccion '{tipo_prediccion}' no reconocido")
-
-        """
-        #ruta_pdf = INFORME_DIR / 'reports' / nombre_archivo
         ruta_pdf = Path(ruta_pdf)
         if not ruta_pdf.exists():
             raise FileNotFoundError(f"No se encontró el pdf en : {ruta_pdf}")

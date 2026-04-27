@@ -167,6 +167,7 @@ class PredictionService():
         dias_bajo_cero = 0
         temp_min_abs = float("inf")
         timestamp_temp_min = None
+        timestamp_temp_min_abs = None
         timestamps_bajo_cero = [] 
 
         for dato in datos.get('datos', []):

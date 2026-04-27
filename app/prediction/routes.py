@@ -42,7 +42,7 @@ def prediccion_heladas_observadas(
         request_body = request.get_json()
         province_code = request_body.get('province')
         estacion_code = request_body.get('estacion')
-        incluir_evaluacion = request_body.get('evaluacion', 'false').lower()
+        incluir_evaluacion = request_body.get('evaluacion', False)
         variedades = request_body.get('variedades')
 
         # Comprobación de parámetros recibidos
@@ -68,50 +68,62 @@ def prediccion_heladas_observadas(
                 error = 'Invalid parameters'
             )
 
-        incluir_variedades = incluir_evaluacion in ['true', '1', 'yes', 'si']
         variedades_lista = None
-        if variedades:
-            variedades_lista = [v.strip().lower() for v in variedades.split(',')]
-            variedades_disponibles = PredictionService.listar_variedades_disponibles()
-            for v in variedades_lista:
-                if v not in variedades_disponibles:
-                    raise APIException(
-                        message = f"Variedad de cultivo no reconocidos: {', '.join(v)}",
-                        status = 400,
-                        error = 'Invalid corp params'
-                    )
+        if incluir_evaluacion:
+            if variedades:
+                variedades_lista = [v.strip().capitalize() for v in variedades]
+                variedades_disponibles = PredictionService.listar_variedades_disponibles()
+                for v in variedades_lista:
+                    if v not in [var['nombre'] for var in variedades_disponibles]:
+                        raise APIException(
+                            message = f"Variedad de cultivo no reconocidos: {v}",
+                            status = 400,
+                            error = 'Invalid corp params'
+                        )
 
         # Obtengo la prediccion
         datos_prediccion = PredictionService.obtener_predicciones_helada_observadas(
             province_code = province_code,
             estacion_code = estacion_code,
             type = tipo.lower(),
-            incluir_evaluacion_variedades = incluir_variedades,
+            incluir_evaluacion_variedades = incluir_evaluacion,
             variedades = variedades_lista
         )
 
-        datos_json = dataclass_to_json(datos_prediccion)
+        datos_response = dataclass_to_json(datos_prediccion)
+        datos_json = datos_response.get_json()
 
         quiere_pdf = request.args.get("format") == "pdf" or \
-             "application/pdf" in request.headers.get("Accept", "")
+        "application/pdf" in request.headers.get("Accept", "")
 
-        evento = threading.Event() if quiere_pdf else None
+        pdf_queue = None
+        if quiere_pdf:
+            pdf_queue = queue.Queue()
 
         generar_informe_heladas_background(
             current_app._get_current_object(), 
             datos_prediccion = datos_json, 
-            acumular = True, 
-            is_cultivo = incluir_variedades,
+            acumular = False, 
+            is_cultivo = incluir_evaluacion,
             zona = "provincial",
             provincia = province_code,
-            evento = evento
+            tipo = "observado",
+            pdf_queue = pdf_queue
         )
 
         if quiere_pdf:
-            evento.wait()
-            return verify_file_response(tipo = "heladas")
+            try:
+                ruta_pdf = pdf_queue.get(timeout = 30)
+                return send_file(
+                    ruta_pdf,
+                    mimetype = "application/pdf",
+                    as_attachment = True,
+                    download_name = os.path.basename(ruta_pdf)
+                )
+            except queue.Empty:
+                return dataclass_to_json(datos_response), 200
         
-        return datos_json, 200
+        return datos_response, 200
     
     except ValueError as e:
         logger.error(f'ValueError en prediccion_heladas_observadas: {e}')
@@ -207,6 +219,7 @@ def prediccion_heladas_futuras(
             acumular = True, 
             is_cultivo = incluir_evaluacion_variedad,
             zona = zona,
+            tipo = "futuros",
             provincia = provinciaId if provinciaId else None
         )
 

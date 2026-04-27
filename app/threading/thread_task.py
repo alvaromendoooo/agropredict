@@ -34,20 +34,28 @@ def generar_informe_heladas_background(
     datos_prediccion : dict,
     acumular : bool,
     is_cultivo : bool,
+    tipo : str,
     zona : Optional[str],
     provincia : Optional[str],
-    pdf_queue = None
+    pdf_queue = None,
 ):
     """
     Lanza en background la generación del informe y su firma digital.
     Los dos pasos se ejecutan en secuencia dentro del mismo hilo.
     """
     from ..informe.form_frost_generator import InformeHeladaService
+    from ..informe.form_frost_observed import InformeHeladaObservadaService
 
-    pasos = [
-        (InformeHeladaService.crear_informe, (datos_prediccion,acumular,is_cultivo,zona,provincia), {}),
-        (FirmaService.generar_firma, lambda ruta: ("heladas", None, ruta),{}),
-    ]
+    if tipo == "futuros":
+        pasos = [
+            (InformeHeladaService.crear_informe, (datos_prediccion,acumular,is_cultivo,zona,provincia), {}),
+            (FirmaService.generar_firma, lambda ruta: ("heladas", None, ruta),{}),
+        ]
+    elif tipo == "observado":
+        pasos = [
+            (InformeHeladaObservadaService.crear_informe, (datos_prediccion, zona, provincia), {}),
+            (FirmaService.generar_firma, lambda ruta: ("heladas", None, ruta), {}),
+        ]
 
     thread = threading.Thread(
         target=_background_pipeline,

@@ -7,6 +7,8 @@ info:
 servers:
   - url: http://localhost:5000
     description: Servidor de desarrollo
+  - url: http://51.44.230.198:10000
+    description: Servidor de producción
 
 tags:
   - name: Heladas
