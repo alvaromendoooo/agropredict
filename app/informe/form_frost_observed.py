@@ -12,6 +12,7 @@ from reportlab.graphics.shapes import Drawing, String
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
+from functools import partial
 import os
 
 # === CONFIGURACIÓN DEL INFORME === #
@@ -45,6 +46,30 @@ COLORES_NIVEL = {
     "sin_riesgo": COLOR_SIN_RIESGO,
 }
 
+MAPA_CODIGO_PROVINCIA = {
+            "CC" : "Cáceres",
+            "BA" : "Badajoz",
+            "IB" : "Islas Baleares",
+            "B" : "Barcelona",
+            "C" : "A Coruña",
+            "GI" : "Girona",
+            "HU" : "Huesca",
+            "LL" : "Lleida",
+            "LO" : "La Rioja",
+            "LU" : "Lugo",
+            "M" : "Madrid",
+            "MU" : "Murcia",
+            "NA" : "Navarra",
+            "OU" : "Ourense",
+            "O" : "Asturias",
+            "GC" : "Las Palmas",
+            "PO" : "Pontevedra",
+            "TF" : "Tenerife",
+            "T" : "Tarragona",
+            "TE" : "Teruel",
+            "Z" : "Zaragoza"
+        }
+
 
 class InformeHeladaObservadaService:
     """
@@ -61,7 +86,7 @@ class InformeHeladaObservadaService:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _encabezado_pie(canvas_obj, doc):
+    def _encabezado_pie(canvas_obj, doc, localizacion_calculo):
         canvas_obj.saveState()
         ancho, alto = letter
 
@@ -78,6 +103,10 @@ class InformeHeladaObservadaService:
 
         canvas_obj.setFont("Helvetica", 7)
         canvas_obj.drawString(1 * inch, alto - 52, "Fuente: SiAR — Red de estaciones agrometeorológicas de Extremadura")
+
+        # Localización de cálculo
+        canvas_obj.setFont("Helvetica", 7)
+        canvas_obj.drawString(1 * inch, alto - 63, f"Localización de cálculo: {localizacion_calculo}")
 
         canvas_obj.setFont("Helvetica", 9)
         canvas_obj.drawRightString(ancho - 1 * inch, alto - 25, f"Generado: {FECHA}")
@@ -150,7 +179,7 @@ class InformeHeladaObservadaService:
             ["Tipo de predicción", tipo_prediccion.capitalize()],
             ["Naturaleza del cálculo", tipo_estimacion.capitalize()],
             ["Tipos de datos empleados", tipos_datos.capitalize()],
-            ["Fuente de datos", fuentes],
+            ["Fuente de datos", f"{fuentes} - Red de estaciones agrometeorológicas de Extremadura"],
             ["Fecha de generación del informe", fecha_generacion],
         ]
 
@@ -191,6 +220,104 @@ class InformeHeladaObservadaService:
         return elementos
 
     # ------------------------------------------------------------------ #
+    # SECCIÓN: ESTACIONES UTILIZADAS                                     #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _seccion_estaciones(estaciones: list, fecha_inicio: str, styles) -> list:
+        """
+        Genera un bloque informativo sobre las estaciones meteorológicas
+        utilizadas para el cálculo. Solo dispone del código de estación.
+        """
+        elementos = []
+
+        estilo_caption = ParagraphStyle(
+            "CaptionEstacionesObs", parent=styles["Normal"],
+            fontSize=8, textColor=colors.HexColor("#444444"), leading=11, spaceAfter=5,
+        )
+
+        n = len(estaciones)
+        codigos = []
+        for est in estaciones:
+            if hasattr(est, "__dict__"):
+                est = est.__dict__
+            if isinstance(est, dict):
+                codigo = str(est.get("codigo", est.get("code", est.get("id", est))))
+            else:
+                codigo = str(est)
+            codigos.append(codigo)
+
+        if n == 1:
+            intro = (
+                f"Los datos de este informe corresponden a la <b>estación meteorológica "
+                f"con código {codigos[0]}</b>, desde el inicio del período analizado ({fecha_inicio})."
+            )
+        else:
+            codigos_str = ", ".join(codigos)
+            intro = (
+                f"Los datos de este informe son la <b>media de {n} estaciones "
+                f"meteorológicas</b> desde el inicio del período analizado ({fecha_inicio}). "
+                f"Códigos de estación empleados: <b>{codigos_str}</b>."
+            )
+
+        elementos.append(Paragraph(intro, estilo_caption))
+
+        # Píldoras de código por estación
+        filas_pills = []
+        fila_actual = []
+        for i, codigo in enumerate(codigos):
+            fila_actual.append(
+                Paragraph(
+                    f"<b>{codigo}</b>",
+                    ParagraphStyle(
+                        f"Pill_{i}", parent=styles["Normal"],
+                        fontSize=9, fontName="Helvetica-Bold",
+                        textColor=colors.white, alignment=1,
+                    )
+                )
+            )
+            if len(fila_actual) == 4 or i == len(codigos) - 1:
+                # Rellenar fila incompleta con celdas vacías
+                while len(fila_actual) < 4:
+                    fila_actual.append("")
+                filas_pills.append(fila_actual)
+                fila_actual = []
+
+        col_widths_pills = [1.5 * inch] * 4
+        tabla_pills = Table(filas_pills, colWidths=col_widths_pills)
+        tabla_pills.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, -1), COLOR_PRIMARIO),
+            ("TEXTCOLOR",     (0, 0), (-1, -1), colors.white),
+            ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING",    (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
+            ("GRID",          (0, 0), (-1, -1), 2, colors.white),
+            ("BOX",           (0, 0), (-1, -1), 1, COLOR_SECUNDARIO),
+            ("ROWBACKGROUNDS",(0, 0), (-1, -1), [COLOR_PRIMARIO, colors.HexColor("#004D0F")]),
+        ]))
+
+        elementos.append(Spacer(1, 0.06 * inch))
+        elementos.append(tabla_pills)
+        elementos.append(Spacer(1, 0.1 * inch))
+
+        nota = (
+            "<i>Nota: los identificadores corresponden a estaciones de la red SiAR "
+            "(Sistema de Información Agroclimática para el Regadío). "
+            "Para consultar los metadatos completos de cada estación, "
+            "acceda al portal SiAR de Extremadura.</i>"
+        )
+        elementos.append(Paragraph(nota, ParagraphStyle(
+            "NotaEstaciones", parent=styles["Normal"],
+            fontSize=7, textColor=colors.grey, leading=10
+        )))
+
+        elementos.append(Spacer(1, 0.1 * inch))
+        return elementos
+
+    # ------------------------------------------------------------------ #
     # SECCIÓN: RESUMEN EJECUTIVO                                          #
     # ------------------------------------------------------------------ #
 
@@ -199,14 +326,35 @@ class InformeHeladaObservadaService:
         """
         Resumen ejecutivo con el nivel de riesgo global, comentarios
         y estadísticas de temperatura mínima del período.
+
+        CORRECCIÓN vPedro: el comentario mostraba decimales sin redondear
+        (p.ej. "32.63552202879201") y texto interno con guiones bajos
+        ("sin_riesgo"). Se formatea correctamente antes de renderizar.
         """
         elementos = []
 
         nivel = predicciones.get("nivel", "sin_riesgo")
-        comentarios = predicciones.get("comentarios", "Sin comentarios disponibles.")
+        comentarios_raw = predicciones.get("comentarios", "Sin comentarios disponibles.")
         registro_temp = predicciones.get("registro_temperatura_minima", {})
         dias_bajo_cero = registro_temp.get("dias_bajo_cero", 0)
         temp_minima = registro_temp.get("temperatura_minima_registrada", None)
+
+        # ── CORRECCIÓN: Limpiar el texto de comentarios ──────────────────
+        # Reemplaza guiones bajos residuales, redondea decimales largos
+        import re
+        def _limpiar_comentario(texto: str) -> str:
+            # Redondear números flotantes con muchos decimales (> 4 cifras)
+            def _redondear(match):
+                valor = float(match.group())
+                return f"{valor:.2f}"
+            texto = re.sub(r'\b\d+\.\d{5,}\b', _redondear, texto)
+            # Reemplazar nivel con guion bajo por texto legible
+            texto = texto.replace("sin_riesgo", "sin riesgo")
+            texto = texto.replace("_", " ")
+            return texto
+
+        comentarios = _limpiar_comentario(comentarios_raw)
+        # ─────────────────────────────────────────────────────────────────
 
         color_nivel = COLORES_NIVEL.get(nivel.lower(), COLOR_SIN_RIESGO)
 
@@ -239,7 +387,7 @@ class InformeHeladaObservadaService:
         elementos.append(tabla_nivel)
         elementos.append(Spacer(1, 0.15 * inch))
 
-        # Comentario de análisis
+        # Comentario de análisis (ya limpio)
         elementos.append(Paragraph(comentarios, estilo_normal))
         elementos.append(Spacer(1, 0.1 * inch))
 
@@ -471,7 +619,7 @@ class InformeHeladaObservadaService:
         heladas_negras = predicciones.get("riesgos_heladas_negras", [])
 
         # --- Heladas blancas ---
-        elementos.append(Paragraph("Heladas Blancas (T ≤ 2°C + HR ≥ 60%)", estilo_subtitulo))
+        elementos.append(Paragraph("Heladas Blancas (T <= 2°C + HR >= 60%)", estilo_subtitulo))
 
         if heladas_blancas:
             cabecera_blanca = ["Fecha", "Temperatura (°C)", "Humedad (%)", "Estación (Temp.)", "Estaciones (HR)"]
@@ -515,7 +663,7 @@ class InformeHeladaObservadaService:
         elementos.append(Spacer(1, 0.2 * inch))
 
         # --- Heladas negras ---
-        elementos.append(Paragraph("Heladas Negras (T ≤ 0°C + HR < 60%)", estilo_subtitulo))
+        elementos.append(Paragraph("Heladas Negras (T <= 0°C + HR < 60%)", estilo_subtitulo))
 
         if heladas_negras:
             cabecera_negra = ["Fecha", "Temperatura (°C)", "Estación"]
@@ -560,46 +708,152 @@ class InformeHeladaObservadaService:
 
     @staticmethod
     def _grafico_heladas_blancas(heladas_blancas: list) -> Optional[Drawing]:
-        """
-        Gráfico de barras con las temperaturas mínimas registradas
-        en cada episodio de helada blanca detectado.
-        """
         if not heladas_blancas:
             return None
 
-        fechas = [str(h.get("timestamp", "")) for h in heladas_blancas]
-        temperaturas = [round(h.get("temperatura", 0), 3) for h in heladas_blancas]
+        episodios = []
+        for h in heladas_blancas:
+            try:
+                fecha = datetime.fromisoformat(str(h.get("timestamp", ""))).date()
+            except Exception:
+                continue
+            episodios.append((fecha, round(h.get("temperatura", 0), 3)))
 
-        d = Drawing(420, 180)
+        if not episodios:
+            return None
 
-        bc = VerticalBarChart()
-        bc.x = 50
-        bc.y = 40
-        bc.height = 110
-        bc.width = 340
-        bc.data = [temperaturas]
-        bc.fillColor = colors.HexColor("#AED6F1")
-        bc.bars[0].fillColor = colors.HexColor("#2E86C1")
-        bc.valueAxis.valueMin = min(temperaturas) - 0.5 if temperaturas else -1
-        bc.valueAxis.valueMax = max(max(temperaturas) + 0.5, 2.5)
-        bc.valueAxis.valueSteps = None
-        bc.categoryAxis.categoryNames = fechas
-        bc.categoryAxis.labels.angle = 45
-        bc.categoryAxis.labels.boxAnchor = 'e'
-        bc.categoryAxis.labels.fontSize = 6
-        bc.categoryAxis.labels.dy = -10
+        episodios.sort(key=lambda x: x[0])
+        n = len(episodios)
 
-        paso = max(1, len(fechas) // 6)
-        bc.categoryAxis.categoryNames = [
-            f if i % paso == 0 else "" for i, f in enumerate(fechas)
-        ]
+        # ── Dimensiones ──────────────────────────────────────────────────────
+        ANCHO_DIBUJO = 560
+        ALTO_DIBUJO  = 270
+        X0 = 60       # margen izquierdo
+        Y0 = 70       # margen inferior amplio para etiquetas rotadas
+        W  = 460
+        H  = 155
 
-        d.add(bc)
+        # Espaciado uniforme entre episodios
+        paso_x = W / (n + 1)
+        puntos_x = [X0 + paso_x * (i + 1) for i in range(n)]
 
-        # Etiqueta del eje Y
-        etiqueta = String(10, 90, "Temp (°C)", fontSize=7, fillColor=colors.grey)
-        etiqueta.textAnchor = "middle"
-        d.add(etiqueta)
+        d = Drawing(ANCHO_DIBUJO, ALTO_DIBUJO)
+
+        from reportlab.graphics.shapes import Rect, Line, Circle, PolyLine
+        from reportlab.graphics.shapes import ArcPath
+        import math
+
+        d.add(Rect(X0, Y0, W, H,
+                fillColor=colors.HexColor("#F8F9FA"),
+                strokeColor=colors.HexColor("#CCCCCC"),
+                strokeWidth=0.5))
+
+        temps = [t for _, t in episodios]
+        y_min = min(temps) - 0.4
+        y_max = max(max(temps) + 0.4, 2.5)
+        y_rango = y_max - y_min
+
+        def _px_y(temp):
+            return Y0 + ((temp - y_min) / y_rango) * H
+
+        # ── Referencias horizontales ─────────────────────────────────────────
+        for umbral, hex_color, etiqueta in [
+            (2.0, "#AED6F1", "2°C"),
+            (0.0, "#F1948A", "0°C"),
+        ]:
+            py = _px_y(umbral)
+            if Y0 <= py <= Y0 + H:
+                d.add(Line(X0, py, X0 + W, py,
+                        strokeColor=colors.HexColor(hex_color),
+                        strokeWidth=1.0, strokeDashArray=[5, 3]))
+                d.add(String(X0 + W + 4, py - 3, etiqueta,
+                            fontSize=7, fillColor=colors.HexColor(hex_color)))
+
+        # ── Cuadrícula horizontal ────────────────────────────────────────────
+        paso_y = 0.5
+        y_tick = math.ceil(y_min / paso_y) * paso_y
+        while y_tick <= y_max:
+            py = _px_y(y_tick)
+            if Y0 <= py <= Y0 + H:
+                d.add(Line(X0 - 4, py, X0, py,
+                        strokeColor=colors.HexColor("#888888"), strokeWidth=0.5))
+                d.add(String(X0 - 6, py - 3.5, f"{y_tick:.1f}",
+                            fontSize=7, fillColor=colors.grey, textAnchor="end"))
+                d.add(Line(X0, py, X0 + W, py,
+                        strokeColor=colors.HexColor("#EEEEEE"), strokeWidth=0.4))
+            y_tick = round(y_tick + paso_y, 2)
+
+        d.add(String(X0 - 52, Y0 + H / 2, "Temp. (°C)",
+                    fontSize=8, fillColor=colors.grey, textAnchor="middle"))
+
+        # ── Línea entre episodios ────────────────────────────────────────────
+        puntos_linea = []
+        for i, (fecha, temp) in enumerate(episodios):
+            puntos_linea += [puntos_x[i], _px_y(temp)]
+        if len(puntos_linea) >= 4:
+            d.add(PolyLine(puntos_linea,
+                        strokeColor=colors.HexColor("#2E86C1"),
+                        strokeWidth=1.4, fillColor=None))
+
+        # ── Puntos, etiquetas de temperatura y fechas rotadas ────────────────
+        for i, (fecha, temp) in enumerate(episodios):
+            cx = puntos_x[i]
+            cy = _px_y(temp)
+
+            # Punto
+            d.add(Circle(cx, cy, 4.5,
+                        fillColor=colors.HexColor("#2E86C1"),
+                        strokeColor=colors.white, strokeWidth=1.0))
+
+            # Temperatura encima
+            d.add(String(cx, cy + 7, f"{temp:.2f}",
+                        fontSize=6.5, fillColor=colors.HexColor("#1A5276"),
+                        textAnchor="middle"))
+
+            # Línea guía vertical hasta el eje X
+            d.add(Line(cx, Y0, cx, Y0 - 4,
+                    strokeColor=colors.HexColor("#888888"), strokeWidth=0.5))
+
+            # Fecha rotada 45° — se consigue desplazando el anchor
+            label = fecha.strftime("%d/%m/%Y")
+            # Desplazamiento manual para simular rotación: String en ReportLab
+            # no soporta rotación directa, usamos un transform vía group
+            from reportlab.graphics.shapes import Group, String as RLString
+            g = Group()
+            s = RLString(0, 0, label,
+                        fontSize=6.5,
+                        fillColor=colors.HexColor("#333333"),
+                        textAnchor="end")
+            g.transform = (0.707, 0.707, -0.707, 0.707, cx, Y0 - 6)
+            g.add(s)
+            d.add(g)
+
+        # ── Ejes principales ─────────────────────────────────────────────────
+        d.add(Line(X0, Y0, X0, Y0 + H,
+                strokeColor=colors.HexColor("#888888"), strokeWidth=1.0))
+        d.add(Line(X0, Y0, X0 + W, Y0,
+                strokeColor=colors.HexColor("#888888"), strokeWidth=1.0))
+
+        # ── Leyenda ──────────────────────────────────────────────────────────
+        lx = X0
+        ly = ALTO_DIBUJO - 12
+        d.add(Circle(lx + 6, ly, 4.5,
+                    fillColor=colors.HexColor("#2E86C1"),
+                    strokeColor=colors.white, strokeWidth=1.0))
+        d.add(String(lx + 14, ly - 3.5, "Episodio de helada blanca",
+                    fontSize=7, fillColor=colors.HexColor("#333333")))
+
+        d.add(Line(lx + 160, ly, lx + 178, ly,
+                strokeColor=colors.HexColor("#AED6F1"),
+                strokeWidth=1.0, strokeDashArray=[5, 3]))
+        d.add(String(lx + 182, ly - 3.5, "Umbral 2°C",
+                    fontSize=7, fillColor=colors.HexColor("#2E86C1")))
+
+        d.add(Line(lx + 255, ly, lx + 273, ly,
+                strokeColor=colors.HexColor("#F1948A"),
+                strokeWidth=1.0, strokeDashArray=[5, 3]))
+        d.add(String(lx + 277, ly - 3.5, "Umbral 0°C",
+                    fontSize=7, fillColor=colors.HexColor("#C0392B")))
 
         return d
 
@@ -636,7 +890,6 @@ class InformeHeladaObservadaService:
 
         d.add(bc)
 
-        # Etiqueta del eje Y
         etiqueta = String(10, 90, "Riesgo (%)", fontSize=7, fillColor=colors.grey)
         etiqueta.textAnchor = "middle"
         d.add(etiqueta)
@@ -652,6 +905,7 @@ class InformeHeladaObservadaService:
         predicciones: dict,
         zona: Optional[str] = None,
         provincia: Optional[str] = None,
+        estaciones: Optional[list] = None,   
     ) -> str:
         """
         Genera un informe PDF autónomo (no acumulativo) para una predicción
@@ -660,8 +914,10 @@ class InformeHeladaObservadaService:
         :param predicciones: Diccionario con la respuesta completa del servicio
         :param zona: Zona geográfica del análisis (opcional)
         :param provincia: Código o nombre de provincia (opcional)
+        :param estaciones: Lista de estaciones utilizadas en el cálculo (opcional)
         :return: Ruta absoluta al PDF generado
         """
+        print(estaciones)
         if not isinstance(predicciones, dict):
             raise ValueError("predicciones debe ser un diccionario válido")
 
@@ -725,7 +981,7 @@ class InformeHeladaObservadaService:
         # Ficha de portada
         datos_portada = [
             ["Período analizado", f"{fecha_inicio} → {fecha_fin}"],
-            ["Zona / Provincia", f"{zona or '—'}  /  {provincia or '—'}"],
+            ["Zona / Provincia", f"{zona or '—'}  /  {provincia or '—'} - {MAPA_CODIGO_PROVINCIA.get(provincia)}"],
             ["Nivel de riesgo global", predicciones.get("nivel", "—").upper().replace("_", " ")],
             ["Tipo de predicción", tipo_prediccion.capitalize()],
             ["Fecha del informe", FECHA],
@@ -754,6 +1010,20 @@ class InformeHeladaObservadaService:
         ]))
         story.extend(InformeHeladaObservadaService._seccion_contexto(predicciones, styles))
         story.append(Spacer(1, 0.2 * inch))
+
+        # ── 1b. ESTACIONES UTILIZADAS [NUEVA — criterio vPedro] ──────── #
+        if estaciones:
+            story.append(KeepTogether([
+                Paragraph("ESTACIONES METEOROLÓGICAS UTILIZADAS", estilo_titulo_seccion),
+                HRFlowable(width="100%", thickness=1, color=COLOR_PRIMARIO, spaceAfter=6),
+                Spacer(1, 6),
+            ]))
+            story.extend(InformeHeladaObservadaService._seccion_estaciones(
+                estaciones=estaciones,
+                fecha_inicio=fecha_inicio or FECHA,
+                styles=styles,
+            ))
+            story.append(Spacer(1, 0.2 * inch))
 
         # ── 2. RESUMEN EJECUTIVO ─────────────────────────────────────── #
         story.append(KeepTogether([
@@ -814,11 +1084,16 @@ class InformeHeladaObservadaService:
                 ))
                 story.append(grafico_variedades)
 
+        encabezado_con_params = partial(
+            InformeHeladaObservadaService._encabezado_pie,
+            localizacion_calculo = provincia
+        )
+
         # Construir PDF
         doc.build(
             story,
-            onFirstPage=InformeHeladaObservadaService._encabezado_pie,
-            onLaterPages=InformeHeladaObservadaService._encabezado_pie,
+            onFirstPage=encabezado_con_params,
+            onLaterPages=encabezado_con_params,
         )
 
         print(f"Informe de heladas observadas generado: {ruta_pdf}")

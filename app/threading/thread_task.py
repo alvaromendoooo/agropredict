@@ -37,6 +37,10 @@ def generar_informe_heladas_background(
     tipo : str,
     zona : Optional[str],
     provincia : Optional[str],
+    cultivo : Optional[str],
+    variedades : Optional[list],
+    localidades : Optional[list],
+    estaciones,
     pdf_queue = None,
 ):
     """
@@ -48,12 +52,12 @@ def generar_informe_heladas_background(
 
     if tipo == "futuros":
         pasos = [
-            (InformeHeladaService.crear_informe, (datos_prediccion,acumular,is_cultivo,zona,provincia), {}),
+            (InformeHeladaService.crear_informe, (datos_prediccion, estaciones, acumular, is_cultivo, zona, provincia, cultivo, variedades, localidades), {}),
             (FirmaService.generar_firma, lambda ruta: ("heladas", None, ruta),{}),
         ]
     elif tipo == "observado":
         pasos = [
-            (InformeHeladaObservadaService.crear_informe, (datos_prediccion, zona, provincia), {}),
+            (InformeHeladaObservadaService.crear_informe, (datos_prediccion, zona, provincia, estaciones), {}),
             (FirmaService.generar_firma, lambda ruta: ("heladas", None, ruta), {}),
         ]
 

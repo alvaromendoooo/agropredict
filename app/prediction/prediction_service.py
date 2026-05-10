@@ -1230,7 +1230,7 @@ class PredictionService():
         else:
             nivel_final = nivel_riesgo_actual
 
-        return nivel_final, alertas
+        return nivel_final, alertas, datos_hf.get("estaciones_utilizadas")
 
     @staticmethod
     def _build_futuras_predicciones(
@@ -1348,7 +1348,7 @@ class PredictionService():
             )
 
             if variedades and len(variedades) > 0:
-                nivel_riesgo_ajustado, alertas_actualizadas = PredictionService.aplicar_condiciones_horas_frio(
+                nivel_riesgo_ajustado, alertas_actualizadas, estaciones_utilizadas = PredictionService.aplicar_condiciones_horas_frio(
                     variedades = variedades,
                     nivel_riesgo_actual = nivel_riesgo,
                     alertas = alertas
@@ -1385,7 +1385,7 @@ class PredictionService():
             precision = TipoPrecision.MEDIA,
             datos_meteorologicos = datos_meteorologicos,
             evaluacion_localidades = predicciones_localidad
-        )
+        ), estaciones_utilizadas
 
     @classmethod
     def listar_variedades_disponibles(
@@ -1471,7 +1471,7 @@ class PredictionService():
                 variedades = variedades
             )
 
-        return predicciones        
+        return predicciones, datos['datos'][0]['estaciones']      
     
     @classmethod
     def obtener_predicciones_helada_futuras(
@@ -1532,7 +1532,7 @@ class PredictionService():
         elif incluir_eval_localidad and not datos_localidad:
             raise ValueError("No se pudieron obtener datos de localidades sobre dataservice")
         else:
-            predicciones = PredictionService._build_futuras_predicciones(
+            predicciones, estaciones_utilizadas = PredictionService._build_futuras_predicciones(
                 datos_futuros = datos_futuros,
                 datos_localidades = datos_localidad if datos_localidad else None,
                 incluir_evaluacion_localidad = True if incluir_eval_localidad else False,
@@ -1541,4 +1541,4 @@ class PredictionService():
                 variedades = variedades if variedades else None
             )
 
-        return predicciones
+        return predicciones, estaciones_utilizadas

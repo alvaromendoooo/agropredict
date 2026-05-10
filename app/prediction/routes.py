@@ -73,6 +73,8 @@ def prediccion_heladas_observadas(
             if variedades:
                 variedades_lista = [v.strip().capitalize() for v in variedades]
                 variedades_disponibles = PredictionService.listar_variedades_disponibles()
+                cultivo_asociado = variedades_disponibles[0]['nombre_cultivo']
+
                 for v in variedades_lista:
                     if v not in [var['nombre'] for var in variedades_disponibles]:
                         raise APIException(
@@ -82,7 +84,7 @@ def prediccion_heladas_observadas(
                         )
 
         # Obtengo la prediccion
-        datos_prediccion = PredictionService.obtener_predicciones_helada_observadas(
+        datos_prediccion, estaciones = PredictionService.obtener_predicciones_helada_observadas(
             province_code = province_code,
             estacion_code = estacion_code,
             type = tipo.lower(),
@@ -108,7 +110,11 @@ def prediccion_heladas_observadas(
             zona = "provincial",
             provincia = province_code,
             tipo = "observado",
-            pdf_queue = pdf_queue
+            pdf_queue = pdf_queue,
+            estaciones = estaciones,
+            cultivo = cultivo_asociado if incluir_evaluacion else None,
+            variedades = variedades_lista if incluir_evaluacion else None,
+            localidades =  None,
         )
 
         if quiere_pdf:
@@ -170,6 +176,7 @@ def prediccion_heladas_futuras(
                 variedades_disponibles = PredictionService.listar_variedades_disponibles()
 
                 nombres_disponibles = [v['nombre'].lower() for v in variedades_disponibles]
+                cultivo_asociado = variedades_disponibles[0]['nombre_cultivo']
 
                 for v in variedades_lista:
                     if v not in nombres_disponibles:
@@ -202,7 +209,8 @@ def prediccion_heladas_futuras(
             variedades = variedades_lista
         )
         
-        datos_response = dataclass_to_json(datos)
+        predicciones_obj, estaciones_utilizadas = datos
+        datos_response = dataclass_to_json(predicciones_obj)
         datos_dict = datos_response.get_json()
 
         quiere_pdf = request.args.get("format") == "pdf" or \
@@ -212,6 +220,7 @@ def prediccion_heladas_futuras(
         if quiere_pdf:
             pdf_queue = queue.Queue()
 
+        print(variedades_lista)
         generar_informe_heladas_background(
             current_app._get_current_object(), 
             datos_prediccion = datos_dict, 
@@ -220,7 +229,11 @@ def prediccion_heladas_futuras(
             is_cultivo = incluir_evaluacion_variedad,
             zona = zona,
             tipo = "futuros",
-            provincia = provinciaId if provinciaId else None
+            provincia = provinciaId if provinciaId else None,
+            cultivo = cultivo_asociado if incluir_evaluacion_variedad else None,
+            variedades = variedades_lista if incluir_evaluacion_variedad else None,
+            localidades = localidad_lista if incluir_evaluacion_localidad else None,
+            estaciones = estaciones_utilizadas,
         )
 
         if quiere_pdf:
@@ -334,7 +347,7 @@ def predecir_riesgo_plagas_estimadas():
 
     # Obtengo las parcelas asociadas al cultivo para dar contexto de cálculo
     parcelas_asociadas_cultivo = PredictorPlagasService._obtener_parcelas_asociadas_cultivo(
-        cultivo, 
+        cultivo,
         parcela_id = parcela_id
     )
 
