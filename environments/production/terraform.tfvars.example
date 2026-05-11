@@ -1,0 +1,9 @@
+# terraform.tfvars.example
+# ─────────────────────────────────────────────────────────────────────────────
+# Copia este fichero a terraform.tfvars y rellena los valores reales.
+# terraform.tfvars está en .gitignore — nunca lo subas a git.
+# ─────────────────────────────────────────────────────────────────────────────
+
+key_name       = "tu-keypair-en-aws"
+aemet_api_key  = "tu-api-key-de-aemet"
+itacyl_api_key = "tu-api-key-de-itacyl"

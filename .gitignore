@@ -1,0 +1,12 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+*.tfvars          # contiene secretos reales — NUNCA subir a git
+
+# Excepciones: estos tfvars de ejemplo sí pueden subirse
+!*.tfvars.example
+
+# OS
+.DS_Store
