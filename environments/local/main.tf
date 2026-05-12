@@ -26,7 +26,7 @@ terraform {
 # Provider apuntando a LocalStack
 provider "aws" {
   region                      = "us-east-1"
-  access_key                  = "fake"   # LocalStack no valida credenciales reales
+  access_key                  = "fake" # LocalStack no valida credenciales reales
   secret_key                  = "fake"
   skip_credentials_validation = true
   skip_metadata_api_check     = true
@@ -60,6 +60,7 @@ module "compute" {
   security_group_id = module.networking.security_group_id
   instance_type     = "t2.micro"
   github_org        = "agro-predict-tfg-2026"
+  env_vars          = var.env_vars 
 }
 
 module "storage" {
