@@ -20,6 +20,11 @@ echo "=== Clonando repositorio de orquestación ==="
 git clone https://github.com/${github_org}/agro-predict-orchestator.git /opt/agro-predict
 cd /opt/agro-predict
 
+echo "=== Construcción del .env del que dependerán los contenedores"
+cat > agro-predict-orchestator/docker/.env <<EOF
+${orchestator_env}
+EOF
+
 echo "=== Lanzando servicios con Docker Compose ==="
 docker compose pull
 docker compose up -d
