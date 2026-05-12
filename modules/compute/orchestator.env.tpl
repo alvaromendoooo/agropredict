@@ -60,3 +60,11 @@ DATA_SERVICE_CULTIVOS_BASE_URL=${data_service_cultivos_base_url}
 PASSWORD_CERTIFICADO=${password_certificado}
 
 KEYCLOAK_SECRET=${keycloak_secret}
+POSTGRES_USER=${postgres_user}
+POSTGRES_PASSWORD=${postgres_password}
+KEYCLOAK_USER=${keycloak_user}
+KEYCLOAK_PASSWORD=${keycloak_password}
+KEYCLOAK_PORT=${keycloak_port}
+KEYCLOAK_URL=${keycloak_url}
+KEYCLOAK_STRICT=${keycloak_strict}
+OPENSSL_PATH=${openssl_path}

@@ -30,27 +30,24 @@ locals {
 }
 
 resource "aws_instance" "agro_predict" {
-  #ami                    = data.aws_ami.ubuntu.id # Descomentar para entorno produccion
-  ami                    = "ami-0"  # AMI dummy que LocalStack acepta
-  instance_type          = var.instance_type # t2.micro en free tier
+  ami                    = "ami-000000000000"
+  instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [var.security_group_id]
   key_name               = var.key_name
 
-  # user_data: script que se ejecuta automáticamente al arrancar la instancia
-  # Instala Docker, clona el repo y lanza los servicios
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
     github_org      = var.github_org
     orchestator_env = local.orchestator_env
   }))
 
-  root_block_device {
+  /*root_block_device {
     volume_size = 20 # GB — suficiente para Docker + imágenes
     volume_type = "gp3"
-  }
-
+  }*/ # Descomentar en produccion
   tags = {
     Name        = "${var.project_name}-server"
     Environment = var.environment
   }
 }
+
