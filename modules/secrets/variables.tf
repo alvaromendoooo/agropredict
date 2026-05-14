@@ -9,10 +9,20 @@ variable "environment" {
   type = string
 }
 
-variable "aemet_api_key" {
-  description = "API key de AEMET. Pásala con TF_VAR_aemet_api_key o terraform.tfvars"
+variable "resource_group_name" {
+  description = "Nombre del Resource Group"
   type        = string
-  sensitive   = true  # Terraform no la mostrará en los logs ni en el plan
+}
+
+variable "location" {
+  description = "Región de Azure"
+  type        = string
+}
+
+variable "aemet_api_key" {
+  description = "API key de AEMET"
+  type        = string
+  sensitive   = true
 }
 
 variable "itacyl_api_key" {

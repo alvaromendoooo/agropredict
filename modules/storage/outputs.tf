@@ -1,11 +1,11 @@
 # modules/storage/outputs.tf
 
-output "bucket_name" {
-  description = "Nombre del bucket S3 de alertas"
-  value       = aws_s3_bucket.alertas.id
+output "storage_account_name" {
+  description = "Nombre del Storage Account (equivalente al bucket name en S3)"
+  value       = azurerm_storage_account.alertas.name
 }
 
-output "bucket_arn" {
-  description = "ARN del bucket, necesario para dar permisos IAM"
-  value       = aws_s3_bucket.alertas.arn
+output "container_name" {
+  description = "Nombre del Blob Container"
+  value       = azurerm_storage_container.alertas.name
 }

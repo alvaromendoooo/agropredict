@@ -1,24 +1,24 @@
 # environments/production/variables.tf
 
-variable "aws_region" {
-  description = "Región de AWS donde desplegar"
-  type        = string
-  default     = "us-east-1"
-}
-
-variable "key_name" {
-  description = "Nombre del key pair de AWS para acceso SSH a la instancia"
-  type        = string
-}
-
-variable "aemet_api_key" {
-  description = "API key real de AEMET"
+variable "azure_subscription_id" {
+  description = "ID de la suscripción de Azure"
   type        = string
   sensitive   = true
 }
 
-variable "itacyl_api_key" {
-  description = "API key real de ITACyL"
+variable "azure_region" {
+  description = "Región de Azure donde desplegar"
   type        = string
+  default     = "West Europe"
+}
+
+variable "ssh_public_key" {
+  description = "Clave pública SSH para acceder a la VM. Genera con: ssh-keygen -t rsa -b 4096 -f ~/.ssh/agro-predict"
+  type        = string
+}
+
+variable "env_vars" {
+  description = "Variables de entorno para los contenedores Docker"
+  type        = map(string)
   sensitive   = true
 }

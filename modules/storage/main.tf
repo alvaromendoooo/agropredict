@@ -1,44 +1,50 @@
 # modules/storage/main.tf
 # ─────────────────────────────────────────────────────────────────────────────
-# Bucket S3 para almacenar los logs de alertas que genera log_alertas()
-# en prediction_service.py — en lugar de escribirlos en fichero local.
+# Azure Blob Storage para almacenar los logs de alertas.
+# Equivalente al bucket S3 del entorno AWS.
 # ─────────────────────────────────────────────────────────────────────────────
 
-resource "aws_s3_bucket" "alertas" {
-  # Los nombres de bucket S3 son globales en AWS, por eso añadimos sufijo único
-  bucket = "${var.project_name}-alertas-${var.environment}"
+# Storage Account — contenedor de todos los recursos de almacenamiento en Azure
+resource "azurerm_storage_account" "alertas" {
+  name                     = "${replace(var.project_name, "-", "")}${var.environment}st"  # máx 24 chars, solo minúsculas y números
+  resource_group_name      = var.resource_group_name
+  location                 = var.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"  # Locally Redundant Storage — equivalente a S3 standard
+
+  # Bloquear acceso público — los logs no deben ser accesibles desde internet
+  public_network_access_enabled = false
 
   tags = {
-    Name        = "${var.project_name}-alertas"
     Environment = var.environment
+    Project     = var.project_name
   }
 }
 
-# Bloquear acceso público — los logs no deben ser accesibles desde internet
-resource "aws_s3_bucket_public_access_block" "alertas" {
-  bucket = aws_s3_bucket.alertas.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
+# Blob Container — equivalente al bucket S3
+resource "azurerm_storage_container" "alertas" {
+  name                  = "${var.project_name}-alertas"
+  storage_account_name  = azurerm_storage_account.alertas.name
+  container_access_type = "private"
 }
 
-# Ciclo de vida: mover logs antiguos a almacenamiento más barato automáticamente
-resource "aws_s3_bucket_lifecycle_configuration" "alertas" {
-  bucket = aws_s3_bucket.alertas.id
+# Lifecycle management — equivalente al lifecycle_configuration de S3
+resource "azurerm_storage_management_policy" "alertas" {
+  storage_account_id = azurerm_storage_account.alertas.id
 
   rule {
-    id     = "archivar-logs-antiguos"
-    status = "Enabled"
+    name    = "archivar-logs-antiguos"
+    enabled = true
 
-    transition {
-      days          = 30
-      storage_class = "STANDARD_IA"  # más barato para datos poco accedidos
+    filters {
+      blob_types = ["blockBlob"]
     }
 
-    expiration {
-      days = 365  # borrar logs con más de un año
+    actions {
+      base_blob {
+        tier_to_cool_after_days_since_modification_greater_than    = 30   # equivalente a STANDARD_IA
+        delete_after_days_since_modification_greater_than          = 365  # borrar tras un año
+      }
     }
   }
 }

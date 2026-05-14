@@ -1,116 +1,144 @@
 # modules/networking/main.tf
 # ─────────────────────────────────────────────────────────────────────────────
-# Red principal de Agro Predict:
-#   - VPC aislada para todos los servicios
-#   - Subnet pública donde vivirá la instancia EC2
-#   - Internet Gateway para que la instancia tenga salida a internet
-#   - Security Group que abre solo los puertos necesarios
+# Red principal de Agro Predict en Azure:
+#   - Resource Group contenedor de todos los recursos
+#   - Virtual Network (equivalente a VPC en AWS)
+#   - Subnet pública donde vivirá la VM
+#   - Network Security Group con las mismas reglas que el SG de AWS
+#   - IP pública para acceso externo
 # ─────────────────────────────────────────────────────────────────────────────
 
-resource "aws_vpc" "main" {
-  cidr_block           = var.vpc_cidr
-  enable_dns_hostnames = true
-  enable_dns_support   = true
+resource "azurerm_resource_group" "main" {
+  name     = "${var.project_name}-rg-${var.environment}"
+  location = var.location
 
   tags = {
-    Name        = "${var.project_name}-vpc"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+resource "azurerm_virtual_network" "main" {
+  name                = "${var.project_name}-vnet"
+  address_space       = [var.vpc_cidr]
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+
+  tags = {
     Environment = var.environment
   }
 }
 
-resource "aws_subnet" "public" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.subnet_cidr
-  availability_zone       = "${var.aws_region}a"
-  map_public_ip_on_launch = true
+resource "azurerm_subnet" "public" {
+  name                 = "${var.project_name}-subnet-public"
+  resource_group_name  = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes     = [var.subnet_cidr]
+}
+
+resource "azurerm_public_ip" "main" {
+  name                = "${var.project_name}-public-ip"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
 
   tags = {
-    Name        = "${var.project_name}-subnet-public"
     Environment = var.environment
   }
 }
 
-resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
-
-  tags = {
-    Name        = "${var.project_name}-igw"
-    Environment = var.environment
-  }
-}
-
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
-  }
-
-  tags = {
-    Name        = "${var.project_name}-rt-public"
-    Environment = var.environment
-  }
-}
-
-resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
-  route_table_id = aws_route_table.public.id
-}
-
-# Security Group: solo abrimos los puertos estrictamente necesarios
-resource "aws_security_group" "agro_predict" {
-  name        = "${var.project_name}-sg"
-  description = "Security group para los servicios de Agro Predict"
-  vpc_id      = aws_vpc.main.id
+# Network Security Group (equivalente al Security Group de AWS)
+resource "azurerm_network_security_group" "main" {
+  name                = "${var.project_name}-nsg"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
 
   # SSH - solo para administración
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "SSH"
+  security_rule {
+    name                       = "SSH"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
   }
 
-  # HTTP - API de predicciones
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "HTTP"
+  # HTTP
+  security_rule {
+    name                       = "HTTP"
+    priority                   = 110
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "80"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  # Keycloak HTTPS
+  security_rule {
+    name                       = "Keycloak"
+    priority                   = 120
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "8443"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
   }
 
   # Grafana dashboard
-  ingress {
-    from_port   = 3000
-    to_port     = 3000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Grafana"
+  security_rule {
+    name                       = "Grafana"
+    priority                   = 130
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "3000"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
   }
 
   # Prometheus
-  ingress {
-    from_port   = 9090
-    to_port     = 9090
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Prometheus"
+  security_rule {
+    name                       = "Prometheus"
+    priority                   = 140
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "9090"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
   }
 
-  # Salida libre a internet (para que los servicios puedan llamar a AEMET, SiAR, etc.)
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Salida libre"
+  # Salida libre a internet
+  security_rule {
+    name                       = "OutboundAll"
+    priority                   = 100
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
   }
 
   tags = {
-    Name        = "${var.project_name}-sg"
     Environment = var.environment
   }
+}
+
+# Asociar el NSG a la subnet
+resource "azurerm_subnet_network_security_group_association" "main" {
+  subnet_id                 = azurerm_subnet.public.id
+  network_security_group_id = azurerm_network_security_group.main.id
 }

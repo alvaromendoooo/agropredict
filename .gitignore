@@ -8,6 +8,6 @@ terraform.tfstate.backup
 
 # Excepciones: estos tfvars de ejemplo sí pueden subirse
 !*.tfvars.example
-
+*.txt
 # OS
 .DS_Store

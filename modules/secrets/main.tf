@@ -1,37 +1,41 @@
 # modules/secrets/main.tf
 # ─────────────────────────────────────────────────────────────────────────────
-# Gestión de secretos con AWS Secrets Manager.
-# Sustituye los ficheros .env con API keys en texto plano.
-# Los servicios leen los secretos en tiempo de ejecución via AWS SDK.
+# Azure Key Vault para gestión de secretos.
+# Equivalente a AWS Secrets Manager.
+# Solo almacena las API keys externas (AEMET, ITACyL, SiAR).
+# El resto de variables se inyectan vía user_data como en el entorno local.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Secreto para la API key de AEMET
-resource "aws_secretsmanager_secret" "aemet_api_key" {
-  name        = "${var.project_name}/${var.environment}/aemet-api-key"
-  description = "API key para el servicio de AEMET"
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_key_vault" "main" {
+  name                = "${var.project_name}-kv-prod"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  tenant_id           = data.azurerm_client_config.current.tenant_id
+  sku_name            = "standard"
+
+  # Permitir acceso al service principal de Terraform
+  access_policy {
+    tenant_id = data.azurerm_client_config.current.tenant_id
+    object_id = data.azurerm_client_config.current.object_id
+
+    secret_permissions = ["Get", "Set", "Delete", "List", "Purge"]
+  }
 
   tags = {
     Environment = var.environment
   }
 }
 
-resource "aws_secretsmanager_secret_version" "aemet_api_key" {
-  secret_id     = aws_secretsmanager_secret.aemet_api_key.id
-  # El valor real se pasa como variable — nunca hardcodeado aquí
-  secret_string = var.aemet_api_key
+resource "azurerm_key_vault_secret" "aemet_api_key" {
+  name         = "aemet-api-key"
+  value        = var.aemet_api_key
+  key_vault_id = azurerm_key_vault.main.id
 }
 
-# Secreto para la API key de ITACyL (plagas)
-resource "aws_secretsmanager_secret" "itacyl_api_key" {
-  name        = "${var.project_name}/${var.environment}/itacyl-api-key"
-  description = "API key para el servicio de ITACyL"
-
-  tags = {
-    Environment = var.environment
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "itacyl_api_key" {
-  secret_id     = aws_secretsmanager_secret.itacyl_api_key.id
-  secret_string = var.itacyl_api_key
+resource "azurerm_key_vault_secret" "itacyl_api_key" {
+  name         = "itacyl-api-key"
+  value        = var.itacyl_api_key
+  key_vault_id = azurerm_key_vault.main.id
 }
