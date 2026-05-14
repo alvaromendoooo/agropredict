@@ -176,8 +176,6 @@ services:
       - .env
     ports:
       - "10000:10000"
-    depends_on:
-      - data-service
     networks:
       - broker
     restart: unless-stopped
