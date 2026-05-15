@@ -53,5 +53,5 @@ jobs:
         script: |
           cd ${{ matrix.vm.ruta }}
           git pull
-          docker compose -f .no-gpu/compose.yml pull
-          docker compose -f .no-gpu/compose.yml up -d
+          docker compose -f no-gpu/compose.yml pull
+          docker compose -f no-gpu/compose.yml up -d
