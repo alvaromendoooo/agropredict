@@ -53,7 +53,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git remote set-url origin https://x-access-token:${{ secrets.PAT }}@github.com/agro-predict-tfg-2026/agro-predict-orchestator.git
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/agro-predict-tfg-2026/agro-predict-orchestator.git
           git commit -m "chore: update ${{ github.event.client_payload.service }} to ${{ github.event.client_payload.tag }}"
           git push origin HEAD
 
