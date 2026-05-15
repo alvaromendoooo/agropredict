@@ -1,0 +1,57 @@
+name: Deploymet Orchestation
+
+on:
+  repository_dispatch:
+    types: ["deploy"]
+
+permissions:
+  contents: write
+
+jobs:
+  update_tags:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Step to checkout the code
+      uses: actions/checkout@v4
+    
+    - name: Step to change tags in compose.yml for development
+      if: github.event.client_payload.tags != 'latest'
+      run: |
+        sed -i "s|mendo1/agro-predict:${{ github.event.client_payload.service }}-[^ ]*|mendo1/agro-predict:${{ github.event.client_payload.tag }}|g" docker/compose.yml
+        sed -i "s|mendo1/agro-predict:${{ github.event.client_payload.service }}-[^ ]*|mendo1/agro-predict:${{ github.event.client_payload.tag }}|g" no-gpu/compose.yml
+
+    - name: Commit updated tags
+      run: |
+        git config user.name 'github-actions[bot]'
+        git config user.email 'github-actions[bot]@users.noreply.github.com'
+        git add docker/compose.yml no-gpu/compose.yml
+        git diff --cached --quiet || git commit -m "chore: update ${{ github.event.client_payload.service }} to ${{ github.event.client_payload.tag }}"
+        git push
+
+  deplow_vms:
+    
+    needs: [update_tags]
+    if: github.event_name == 'repository_dispatch'
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        vm:
+        - { ip: "${{ vars.VM_IP_AWS }}", user: "ubuntu", ruta: "${{ vars.RUTA_AWS }}" }
+        #- { ip: "${{ vars.VM_IP_AZURE }}", user: "${{ vars.AZURE_USER }}", ruta: "${{ vars.RUTA_AZURE }}" } # De momento se elimina por la poca capacidad que tiene la VM de Azure
+
+    steps:
+    - name: Deploy orchestator's changes in VMs
+      uses: appleboy/ssh-action@v1
+      with:
+        host: ${{ matrix.vm.ip }}
+        username: ${{ matrix.vm.user }}
+        key: ${{ matrix.vm.ip == vars.VM_IP_AWS && secrets.VM_SSH_AWS || secrets.VM_SSH_AZURE }}
+        script: |
+          cd ${{ matrix.vm.ruta }}
+          git pull
+          docker compose -f .no-gpu/compose.yml pull
+          docker compose -f .no-gpu/compose.yml up -d
