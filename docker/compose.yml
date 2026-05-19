@@ -148,7 +148,7 @@ services:
     restart: unless-stopped
 
   data-service:
-    image: mendo1/agro-predict:data-service-1.0
+    image: mendo1/agro-predict:data-service-latest
     container_name: data-service
     env_file:
       - .env
@@ -170,7 +170,7 @@ services:
     restart: unless-stopped
   
   worker:
-    image: mendo1/agro-predict:data-service-1.0
+    image: mendo1/agro-predict:data-service-latest
     container_name: worker
     command: celery -A celery_worker.celery_app worker --loglevel=info
     env_file:
