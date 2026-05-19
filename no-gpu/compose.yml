@@ -67,7 +67,7 @@ services:
     restart: unless-stopped
 
   data-service:
-    image: mendo1/agro-predict:data-service-latest
+    image: mendo1/agro-predict:data-service-0.1
     container_name: data-service
     env_file:
       - .env
@@ -81,8 +81,25 @@ services:
       - itacyl-service
     restart: unless-stopped
   
+  rabbitmq:
+    image: rabbitmq:latest
+    container_name: broker
+    restart: unless-stopped
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    configs:
+      - source: rabbitmq-plugins
+        target: /etc/rabbitmq/enabled_plugins
+    volumes:
+      - rabbitmq-lib:/var/lib/rabbitmq/
+      - rabbitmq-log:/var/log/rabbitmq
+
   worker:
-    image: mendo1/agro-predict:data-service-latest
+    image: mendo1/agro-predict:data-service-0.1
     container_name: worker
     command: celery -A celery_worker.celery_app worker --loglevel=info
     env_file:
@@ -90,6 +107,7 @@ services:
     depends_on:
       - data-service
       - cache
+      - rabbitmq
     restart: unless-stopped
 
   predictors:
@@ -109,3 +127,7 @@ volumes:
     driver: local
   cache:
     driver: local
+  rabbitmq-lib:
+    driver: local
+  rabbitmq-log:
+    driver: local 
