@@ -148,7 +148,7 @@ services:
     restart: unless-stopped
 
   data-service:
-    image: mendo1/agro-predict:data-service-latest
+    image: mendo1/agro-predict:data-service-1.0
     container_name: data-service
     env_file:
       - .env
@@ -165,6 +165,19 @@ services:
       - siar-service
       - itacyl-service
       - ia-service
+    networks:
+      - broker
+    restart: unless-stopped
+  
+  worker:
+    image: mendo1/agro-predict:data-service-0.1
+    container_name: worker
+    command: celery -A celery_worker.celery_app worker --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      - data-service
+      - cache
     networks:
       - broker
     restart: unless-stopped

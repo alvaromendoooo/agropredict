@@ -27,7 +27,7 @@ services:
     restart: always
     ports:
       - "6379:6379"
-    command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASS} # Almacena datos cada 20 seg, solo muestra warnings
+    command: redis-server --loglevel warning --requirepass ${REDIS_PASS} # Solo muestra warnings
     volumes:
       - cache:/data
 
@@ -67,7 +67,7 @@ services:
     restart: unless-stopped
 
   data-service:
-    image: mendo1/agro-predict:data-service-latest
+    image: mendo1/agro-predict:data-service-0.1
     container_name: data-service
     env_file:
       - .env
@@ -79,6 +79,17 @@ services:
       - aemet-service
       - siar-service
       - itacyl-service
+    restart: unless-stopped
+  
+  worker:
+    image: mendo1/agro-predict:data-service-0.1
+    container_name: worker
+    command: celery -A celery_worker.celery_app worker --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      - data-service
+      - cache
     restart: unless-stopped
 
   predictors:
