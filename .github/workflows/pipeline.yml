@@ -81,4 +81,4 @@ jobs:
             git reset --hard origin/main
             docker compose -f no-gpu/compose.yml down
             docker compose -f no-gpu/compose.yml pull
-            docker compose -f no-gpu/compose.yml up -d
+            docker compose -f no-gpu/compose.yml up -d --force-recreate --remove-orphans
