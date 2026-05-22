@@ -3,6 +3,7 @@ import logging
 import asyncio
 from fastmcp import Client as client_fastmcp
 from mcp.types import PromptMessage, TextContent
+from functools import partial
 
 import json
 import os
@@ -17,6 +18,7 @@ from ollama import ChatResponse
 
 from dotenv import load_dotenv
 from typing import List
+import asyncio
 
 logger = logging.getLogger(__name__)
 load_dotenv()
@@ -42,7 +44,6 @@ cache = RedisCache(
     default_ttl = 3600
 )
 
-@staticmethod
 async def procesar_mensajes(
     mensaje,
     channel,
@@ -68,7 +69,6 @@ async def procesar_mensajes(
             # Obtención del prompt para enviarlo a la IA
             logger.info("=== OBTENCIÓN DEL PROMPT DESDE MCP ===")
             prompt = await obtener_prompt(mensaje)
-
             # Llamada al Agente AI y retorno de su respuesta
             logger.info("=== OBTENCIÓN RESPUESTA AGENTE AI ===")
             response = await obtener_respuesta_ia(prompt.messages)
@@ -92,7 +92,6 @@ async def procesar_mensajes(
                 queues["processed"], 
                 result.structured_content)
 
-@staticmethod
 async def obtener_prompt(text : str):
     
     prompt_a_usar = await client_mcp.get_prompt(
@@ -102,7 +101,6 @@ async def obtener_prompt(text : str):
 
     return prompt_a_usar
 
-@staticmethod
 async def obtener_respuesta_ia(prompt_messages : List[PromptMessage]):
 
     # Convertir los PromptMessages al formato que chat() de ollama espera
@@ -155,6 +153,22 @@ async def obtener_respuesta_ia(prompt_messages : List[PromptMessage]):
     
     return response
 
+loop = asyncio.new_event_loop()
+
+def on_message(ch, method, properties, body, queues):
+    if isinstance(body, (bytes, bytearray)):
+        message = body.decode('utf-8')
+    else:
+        message = str(body)
+
+    try:
+        loop.run_until_complete(procesar_mensajes(message, ch, queues))
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+        print("ACK")
+    except Exception as e:
+        print(f"Error procesando el mensaje: {e}")
+        ch.basic_nack(method.delivery_tag, requeue=True)
+
 def main():
 
     logger.info("========== RABBITMQ COMMUNICATION ==========")
@@ -169,28 +183,12 @@ def main():
         global_qos = True
     )
     
-    def on_message(ch, method, properties, body):
-        if isinstance(body, (bytes, bytearray)):
-            message = body.decode('utf-8')
-        else:
-            message = str(body)
-
-        try:
-            asyncio.run(procesar_mensajes(message, ch, queues))
-            # ACK del mensaje (eliminamos de la cola)
-            ch.basic_ack(method.delivery_tag)
-            print("ACK")
-        except Exception as e:
-            print(f"Error procesando el mensaje : {e}")
-            ch.basic_nack(method.delivery_tag, requeue = True)
-    
     channel.basic_consume(
         queue = queues["raw"],
-        on_message_callback = on_message
+        on_message_callback = partial(on_message, queues = queues)
     )
 
     print("Esperando mensaje por aemet.raw")
-
     channel.start_consuming()
 
 if __name__ == "__main__":
