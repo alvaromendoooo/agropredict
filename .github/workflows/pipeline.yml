@@ -33,7 +33,6 @@ jobs:
 
       - name: Update image tags
         run: |
-          sed -i "s|mendo1/agro-predict:${{ github.event.client_payload.service }}-[^ ]*|mendo1/agro-predict:${{ github.event.client_payload.tag }}|g" docker/compose.yml
           sed -i "s|mendo1/agro-predict:${{ github.event.client_payload.service }}-[^ ]*|mendo1/agro-predict:${{ github.event.client_payload.tag }}|g" no-gpu/compose.yml
 
       - name: Check for changes
