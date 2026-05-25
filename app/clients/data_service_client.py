@@ -82,8 +82,6 @@ class DataServiceClient(BaseClient):
         resultado = []
         fecha = start_date
         while fecha <= end_date:
-            fecha_aux = fecha
-            fecha += timedelta(days=1)
             try:
                 # Dejo tiempo para que dataservice procese la anterior consulta
                 #time.sleep(20)
@@ -92,7 +90,7 @@ class DataServiceClient(BaseClient):
                     province_code = province_code,
                     estacion_code = estacion_code,
                     type = type,
-                    start_date = fecha_aux,
+                    start_date = fecha,
                     end_date = fecha
                 )
 
@@ -100,18 +98,19 @@ class DataServiceClient(BaseClient):
                     raise ValueError("No se ha recibido datos del cliente, posible error")
                 
                 # Control de errores producidos en el servicio al que me comunico
-                if dato['status'] == 'FAILED':
-                    logger.warning(f"Fallo obteniendo datos para la fecha {fecha} : {e}")
-                    time.sleep(90) # Espera recomendada por SiAR
+                if dato['status'] == 'FAILED' or dato['status'] == 'PENDING':
+                    logger.warning(f"Espera recomendada para la fecha {fecha}")
+                    time.sleep(63) # Espera recomendada por SiAR
 
                 resultado.append(dato)
+                fecha = fecha + timedelta(days = 1)
 
             except Exception as e:
                 # No quiero que se pare la ejecución del bucle, debido a que será un límite de consumo de SiAR
                 logger.warning(f"Fallo obteniendo datos para la fecha {fecha} : {e}")
                 # Esperamos el tiempo estipulado por SiAR hasta la siguiente petición
                 # Una vez estén todos los datos en la BD, esto no nos preocupará
-                time.sleep(90)
+                time.sleep(63)
         
         if not resultado:
             return None
@@ -144,7 +143,7 @@ class DataServiceClient(BaseClient):
             )
 
             # Espero a que los datos estén READY
-            time.sleep(2)
+            time.sleep(4)
 
             return response.json()
         except Exception as e:

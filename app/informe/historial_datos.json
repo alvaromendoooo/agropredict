@@ -94,5 +94,29 @@
     "localidad": null,
     "provincia": null,
     "altitud": null
+  },
+  {
+    "fecha": "24/05/2026",
+    "tipo": "variedad",
+    "nombre": "lauranne",
+    "temp_min": 19,
+    "temp_max": null,
+    "nivel": "moderado",
+    "porcentaje_riesgo": 34.999976200155444,
+    "localidad": null,
+    "provincia": null,
+    "altitud": null
+  },
+  {
+    "fecha": "24/05/2026",
+    "tipo": "variedad",
+    "nombre": "guara",
+    "temp_min": 19,
+    "temp_max": null,
+    "nivel": "moderado",
+    "porcentaje_riesgo": 34.999976200155444,
+    "localidad": null,
+    "provincia": null,
+    "altitud": null
   }
 ]

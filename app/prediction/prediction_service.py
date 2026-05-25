@@ -1449,7 +1449,13 @@ class PredictionService():
         # Almaceno la fecha de hoy
         hoy = date.today()
         # Registro la fecha de inicio de las observaciones - últimos 6 meses
-        fecha_inicio = hoy - timedelta(days=182)
+        if hoy.month >= 10:
+            inicio_anio_agricola = date(hoy.year, 10, 3)
+        else:
+            inicio_anio_agricola = date(hoy.year - 1, 10, 3)
+
+        fecha_inicio = inicio_anio_agricola
+
 
         client = cls._get_cliente()
         datos = client.get_historic_data(
@@ -1470,7 +1476,6 @@ class PredictionService():
                 incluir_evaluacion_variedades = incluir_evaluacion_variedades,
                 variedades = variedades
             )
-
         return predicciones, datos['datos'][0]['estaciones']      
     
     @classmethod
