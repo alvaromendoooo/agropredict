@@ -77,7 +77,7 @@ jobs:
           script: |
             cd ${{ matrix.vm.ruta }}
             git fetch origin
-            git reset --hard origin/main
+            git restore --source=origin/main --staged --worktree -- .
             docker compose -f no-gpu/compose.yml down
             docker compose -f no-gpu/compose.yml pull
             docker compose -f no-gpu/compose.yml up -d --force-recreate --remove-orphans
