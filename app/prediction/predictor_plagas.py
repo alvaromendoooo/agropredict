@@ -133,59 +133,103 @@ class PredictorPlagasService:
         return predicciones_plagas
     
 
+    @staticmethod
+    def _transformar_datos_sensores(
+        datos_sensores: list
+    ) -> dict:               
+        """
+        Transforma la respuesta del servicio de sensores al formato
+        que espera EvaluarPlaga: {date: {nombre_predictor: valor}}
+        """
+        datos_por_dia = {}
+        for sensor in datos_sensores:
+            for resultado in sensor.get('datos_recopilados').get('resultados', []):
+                timestamp_str = resultado.get('timestamp')
+                campo = resultado.get('campo')   # ya viene como nombre_predictor
+                valor = resultado.get('valor')
+
+                fecha = datetime.fromisoformat(
+                    timestamp_str.replace('Z', '+00:00')
+                ).date()
+
+                if fecha not in datos_por_dia:
+                    datos_por_dia[fecha] = {}
+
+                datos_por_dia[fecha][campo] = valor
+
+        return datos_por_dia
+    
+    
+    @staticmethod
+    def _hay_plagas_con_ventana_deslizante(plaga):
+        ventanas = plaga.get('ventana_temporal')
+        if not ventanas:
+            return False
+        return any(
+            v.get('modo') == 'acumulacion_gdd' and
+            (v.get('dias_ventana') is not None or v.get('fecha_inicio_acumulacion') is not None)
+            for v in ventanas
+        )
 
     @classmethod
-    def _filtrar_y_agregar_datos_por_dia(cls, datos_dtagro: list, dia_actual: date) -> dict:
+    def _obtener_datos_temporales_siar(
+        cls,
+        cliente, 
+        fecha_inicio,
+        fecha_fin,
+        codigo_estacion, 
+        codigo_provincia,
+        dias_temporales
+    ):
+        datos_siar_por_fecha = None
+        datos_siar_acumulados = {}
+
         """
-        Filtra los datos de los sensores para un día específico y devuelve 
-        un diccionario con los valores agregados (medias, sumas, etc.) listos 
-        para ser evaluados por las condiciones de la plaga.
+        Obtención de datos climáticos sobre SiAR para fechas asociadas a ventanas temporales 
+        en acumulacion_gdd y en simple, permitiendo generar evaluaciones simples como 
+        base informativa
         """
-        lecturas_del_dia = []
+        print(f"DEBUG: fecha final {fecha_fin}")
+        # Obtengo los datos de SiAR sobre el periodo de días indicado en la ventana temporal
+        fecha_inicio_extendido = fecha_inicio - timedelta(days = dias_temporales)
+        datos_siar_completos_extendidos = cls._obtener_datos_siar(
+            cliente          = cliente,
+            fecha_inicio     = fecha_inicio_extendido,
+            fecha_fin        = fecha_fin,
+            codigo_estacion  = codigo_estacion,
+            codigo_provincia = codigo_provincia 
+        )
 
-        # 1. Filtrar todas las lecturas correspondientes a 'dia_actual'
-        for sensor_global in datos_dtagro:
-            for lectura in sensor_global['resultados']:
-                # Comprobamos si el timestamp viene como string o como objeto datetime
-                if isinstance(lectura['timestamp'], str):
-                    fecha_lectura = datetime.fromisoformat(lectura['timestamp'].replace('Z', '+00:00')).date()
-                elif isinstance(lectura['timestamp'], datetime):
-                    fecha_lectura = lectura['timestamp'].date()
-                else:
-                    fecha_lectura = lectura['timestamp']
-
-                if fecha_lectura == dia_actual:
-                    lecturas_del_dia.append(lectura)
-
-        # Si no hay lecturas de sensores para ese día, devolvemos un diccionario vacío
-        if not lecturas_del_dia:
-            return {}
-
-        def media(valores):
-            filtrados = [v for v in valores if v is not None and v != 0.0]
-            return sum(filtrados) / len(filtrados) if filtrados else None
-        
-        def maximo(valores):
-            filtrados = [v for v in valores if v is not None and v != 0.0]
-            return max(filtrados) if filtrados else None
-        
-        def minimo(valores):
-            filtrados = [v for v in valores if v is not None and v != 0.0]
-            return min(filtrados) if filtrados else None
-
-        return {
-            "temperatura_aire" : media([l['temperatura_maxima'] for l in lecturas_del_dia]),
-            "temperatura_media" : media([l['temperatura_maxima'] for l in lecturas_del_dia]),
-            "temperatura_max" : maximo([l['temperatura_maxima'] for l in lecturas_del_dia]),
-            "temperatura_min" : minimo([l['temperatura_minima'] for l in lecturas_del_dia]),
-            "temperatura_suelo" : media([l['temperatura_suelo'] for l in lecturas_del_dia]),
-            "humedad_relativa" : media([l['humedad_foliar'] for l in lecturas_del_dia]),
-            "humedad_suelo" : media([l['humedad_suelo'] for l in lecturas_del_dia]),
-            "humedad_hoja" : media([l['temperatura_hojas'] for l in lecturas_del_dia]),
+        # Para evaluación simple
+        datos_siar_por_fecha = {
+            fecha : datos
+            for fecha, datos in datos_siar_completos_extendidos.items()
+            if fecha_inicio <= fecha <= fecha_fin
         }
 
+        datos_siar_acumulados = {}
+        fecha_actual = fecha_inicio
+        while fecha_actual <= fecha_fin:
+            fecha_ventana_inicio = fecha_actual - timedelta(days=dias_temporales)
+            datos_siar_acumulados[fecha_actual] = {
+                fecha: datos
+                for fecha, datos in datos_siar_completos_extendidos.items()
+                if fecha_ventana_inicio <= fecha <= fecha_actual
+            }
+            fecha_actual += timedelta(days=1)
+        
+        return datos_siar_acumulados, datos_siar_por_fecha
+
     @classmethod
-    def obtener_prediccion_plagas_estimadas(cls, cultivo: str, datos_sensores, fecha_inicio, fecha_fin):
+    def obtener_prediccion_plagas_estimadas(
+        cls, 
+        cultivo: str, 
+        datos_sensores : list, 
+        fecha_inicio, 
+        fecha_fin, 
+        id_plaga : Optional[str] = None,
+        codigo_estacion : Optional[str] = None,
+        codigo_provincia : Optional[str] = None,):
         """
         Calcula predicción de plagas para un cultivo en un rango de fechas
         
@@ -196,31 +240,60 @@ class PredictorPlagasService:
         """
         try:
             cliente = cls._get_cliente()
+            registro_datos_dtagro = []
 
-            # 1. Obtener datos de sensores para todo el rango
-            datos_dtagro = cliente.get_datos_sensores(
-                euis = datos_sensores,
-                fecha_inicio = fecha_inicio,
-                fecha_fin = fecha_fin
-            )
+            # 1. Obtener plagas del cultivo
+            plagas_cultivos = cliente.get_plagas_por_cultivo(cultivo.capitalize(), id_plaga)
 
-            # 2. Obtener datos meteorológicos SiAR (si están disponibles)
-            datos_siar_por_fecha = cls._obtener_datos_siar(
-                cliente = cliente,
-                fecha_inicio = fecha_inicio,
-                fecha_fin = fecha_fin
-            )
+            # Lista plana de todas las plagas
+            plagas = [p for cultivo_data in plagas_cultivos for p in cultivo_data.get('plaga', [])]
+
+            # Separar las que tienen ventana GDD de las que no
+            plagas_con_gdd = [p for p in plagas if PredictorPlagasService._hay_plagas_con_ventana_deslizante(p)]
+            plagas_sin_gdd = [p for p in plagas if not PredictorPlagasService._hay_plagas_con_ventana_deslizante(p)]
+
+            # Calcular el máximo dias_ventana solo sobre las que lo necesitan
+            max_dias_ventana = max(
+                v.get('dias_ventana', 0)
+                for p in plagas_con_gdd
+                for v in p.get('ventana_temporal', [])
+                if v.get('modo') == 'acumulacion_gdd' and v.get('dias_ventana') is not None
+            ) if plagas_con_gdd else 0
+
+            # Amplio el rango de fechas solo si es necesario por la aparición de acumuladas_gdd 
+            fecha_inicio_sensores = fecha_inicio - timedelta(days=max_dias_ventana) if max_dias_ventana > 0 else fecha_inicio
+
+            # 2. Obtener datos de sensores para todo el rango
+            for dato_sensor in datos_sensores:
+                datos_dtagro = cliente.get_datos_sensores(
+                    eui              = dato_sensor['sensor'],
+                    fecha_inicio     = fecha_inicio_sensores,
+                    fecha_fin        = fecha_fin,
+                    nombre_dtagro    = dato_sensor['nombre_dt_agro'],
+                    nombre_predictor = dato_sensor['nombre_predictor_plaga']
+                )
+                diccionario_dato_dtagro = { # Mantengo una relación de metadatos de sensor junto con sus valores, para distinguir los valores de cada uno
+                    'sensor' : dato_sensor['sensor'],
+                    'nombre_dtagro' : dato_sensor['nombre_dt_agro'],
+                    'nombre_predictor' : dato_sensor['nombre_predictor_plaga'],
+                    'datos_recopilados' : datos_dtagro
+                }
+
+                registro_datos_dtagro.append(diccionario_dato_dtagro)
 
             # 3. Construir diccionario de datos por día (priorizando sensores)
-            datos_por_dia = cls._construir_datos_por_dia(
-                datos_dtagro = datos_dtagro,
-                datos_siar = datos_siar_por_fecha,
-                fecha_inicio = fecha_inicio,
-                fecha_fin = fecha_fin
-            )
+            datos_por_dia_sensores = PredictorPlagasService._transformar_datos_sensores(registro_datos_dtagro)
 
-            # 4. Obtener plagas del cultivo
-            plagas_cultivos = cliente.get_plagas_por_cultivo(cultivo.capitalize())
+            # 4. Obtener datos meteorológicos SiAR (si están disponibles). Dependiendo del tipo de plaga a evaluar, se realizará sobre el día de hoy 
+            # o sobre una fecha determinada
+            datos_siar_por_fecha_periodica, datos_siar_por_fecha = cls._obtener_datos_temporales_siar(
+                cliente          = cliente,
+                fecha_inicio     = fecha_inicio,
+                fecha_fin        = fecha_fin,
+                codigo_estacion  = codigo_estacion,
+                codigo_provincia = codigo_provincia,
+                dias_temporales  = max_dias_ventana,
+            )
 
             if not plagas_cultivos:
                 raise ValueError(f"No se encontraron plagas para el cultivo: {cultivo}")
@@ -240,7 +313,7 @@ class PredictorPlagasService:
                         if plaga_config['algoritmo'] == "adhoc" and plaga_config.get('algoritmo_url'):
                             alerta_dia = EvaluarPlaga.evaluar_algoritmo_externo(
                                 url = plaga_config.get('algoritmo_url'),
-                                datos = datos_por_dia.get(dia_actual, {}),
+                                datos = datos_por_dia_sensores.get(dia_actual, {}),
                                 plaga = plaga_config,
                                 fecha = dia_actual
                             )
@@ -250,10 +323,11 @@ class PredictorPlagasService:
 
                             alerta_dia = EvaluarPlaga.evaluar_plaga_generica(
                                 condiciones_evaluables = plaga_config.get('condiciones_evaluables'),
-                                datos_por_dia = datos_por_dia,
-                                fecha_evaluacion = dia_actual,
-                                plaga = plaga_config,
-                                meteo = datos_meteo_dia  # Solo datos del día actual
+                                datos_por_dia          = datos_por_dia_sensores,
+                                fecha_evaluacion       = dia_actual,
+                                plaga                  = plaga_config,
+                                meteo_dia              = datos_meteo_dia,  # Solo datos del día actual
+                                meteo_periodica        = datos_siar_por_fecha_periodica # Datos ampliados con el periodo de la ventana temporal
                             )
 
                         registro_probabilidades.append({
@@ -268,6 +342,8 @@ class PredictorPlagasService:
                         "plaga_id": plaga_config['public_id'],
                         "nombre": plaga_config['nombre'],
                         "tipo": plaga_config['tipo'],
+                        "ventana_temporal": plaga_config.get('ventana_temporal', []),
+                        "condiciones_evaluables": plaga_config.get('condiciones_evaluables', []),
                         "datos_probabilidad": registro_probabilidades
                     })
 
@@ -283,7 +359,7 @@ class PredictorPlagasService:
             raise
 
     @classmethod
-    def _obtener_datos_siar(cls, cliente, fecha_inicio: date, fecha_fin: date) -> dict:
+    def _obtener_datos_siar(cls, cliente, fecha_inicio: date, fecha_fin: date, codigo_estacion: Optional[str], codigo_provincia: Optional[str]) -> dict:
         """
         Obtiene y parsea los datos meteorológicos del SiAR para el rango de fechas
         
@@ -291,11 +367,11 @@ class PredictorPlagasService:
         """
         try:
             datos_meteo_raw = cliente.get_historic_data(
-                province_code="CC",
-                estacion_code=None,
-                type="DIA",
-                start_date=fecha_inicio,
-                end_date=fecha_fin
+                province_code = codigo_provincia,
+                estacion_code = codigo_estacion,
+                tipo          = "DIA",
+                start_date    = fecha_inicio,
+                end_date      = fecha_fin
             )
             
             return cls._parsear_datos_siar(datos_meteo_raw)
@@ -352,7 +428,7 @@ class PredictorPlagasService:
             dia = fecha_inicio + timedelta(days=i)
             
             # Obtener datos de sensores para este día
-            datos_sensor_dia = cls._filtrar_y_agregar_datos_por_dia(datos_dtagro, dia)
+            datos_sensor_dia = PredictorPlagasService._transformar_datos_sensores(datos_dtagro)
             
             # Obtener datos SiAR para este día (si existen)
             datos_siar_dia = datos_siar.get(dia, {})
@@ -397,3 +473,17 @@ class PredictorPlagasService:
         cliente = cls._get_cliente()
 
         return cliente.get_parcelas_con_cultivos(cultivo, parcela_id)        
+    
+    @classmethod
+    def _obtener_plagas_asociadas_cultivo(
+        cls, 
+        cultivo: str,
+        id_plaga : Optional[str] = None
+    ):
+        """
+        Consulta sobre el servicio de datos las plagas que afectan 
+        al cultivo indicado por parámetros
+        """
+        cliente = cls._get_cliente()
+
+        return cliente.get_plagas_por_cultivo(cultivo, id_plaga)

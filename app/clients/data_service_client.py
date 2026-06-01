@@ -25,16 +25,16 @@ class DataServiceClient(BaseClient):
         self,
         province_code : Optional[str],
         estacion_code : Optional[str],
-        type : str,
+        tipo : str,
         start_date : date,
         end_date : date
     ): 
         try:
             
             if province_code:
-                url = f"{self.base_historical_url}/provincias?provinceCode={province_code}&type={type}&startDate={start_date}&endDate={end_date}"
+                url = f"{self.base_historical_url}/provincias?provinceCode={province_code}&type={tipo}&startDate={start_date}&endDate={end_date}"
             elif estacion_code:
-                url = f"{self.base_historical_url}/estacion?estacionCode={estacion_code}&type={type}&startDate={start_date}&endDate={end_date}"
+                url = f"{self.base_historical_url}/estacion?estacionCode={estacion_code}&type={tipo}&startDate={start_date}&endDate={end_date}"
 
             response = self._make_request(
                 method = 'GET',
@@ -61,60 +61,50 @@ class DataServiceClient(BaseClient):
         self,
         province_code : Optional[str],
         estacion_code : Optional[str],
-        type : str,
+        tipo : str,
         start_date : date,
         end_date : date
     ):
+        MAX_REINTENTOS = 10
+        reintentos = 0 # Salvaguarda para no mantener un bucle infinito
+        end_date_consulta = end_date - timedelta(days = 1) # No dispone de datos provinciales a fecha de hoy hasta el día siguiente
+
         if province_code and estacion_code:
             logger.error("No se pueden indicar a la vez el codigo de provincia y el codigo de estacion, solo uno de ellos")
             return None
-        
         datos = self.get_historic_data_day(
             province_code = province_code,
             estacion_code = estacion_code,
-            type = type,
+            tipo = tipo,
             start_date = start_date,
-            end_date = end_date
+            end_date = end_date_consulta
         )
 
-        # Para ingesta de data inexistente
-        """
-        resultado = []
-        fecha = start_date
-        while fecha <= end_date:
-            try:
-                # Dejo tiempo para que dataservice procese la anterior consulta
-                #time.sleep(20)
-                # Llamada a la peticion de datos
-                dato = self.get_historic_data_day(
-                    province_code = province_code,
-                    estacion_code = estacion_code,
-                    type = type,
-                    start_date = fecha,
-                    end_date = fecha
-                )
-
-                if not dato:
-                    raise ValueError("No se ha recibido datos del cliente, posible error")
-                
-                # Control de errores producidos en el servicio al que me comunico
-                if dato['status'] == 'FAILED' or dato['status'] == 'PENDING':
-                    logger.warning(f"Espera recomendada para la fecha {fecha}")
-                    time.sleep(63) # Espera recomendada por SiAR
-
-                resultado.append(dato)
-                fecha = fecha + timedelta(days = 1)
-
-            except Exception as e:
-                # No quiero que se pare la ejecución del bucle, debido a que será un límite de consumo de SiAR
-                logger.warning(f"Fallo obteniendo datos para la fecha {fecha} : {e}")
-                # Esperamos el tiempo estipulado por SiAR hasta la siguiente petición
-                # Una vez estén todos los datos en la BD, esto no nos preocupará
-                time.sleep(63)
-        
-        if not resultado:
+        # Error de conexión con el servicio de datos
+        if not datos or not isinstance(datos, dict):
             return None
-        """
+        
+        while(datos.get('status') == 'PENDING' or datos.get('status') == 'LOADING'):
+            if reintentos >= MAX_REINTENTOS:
+                logger.error(f"Número máximo de reintentos {MAX_REINTENTOS} consumidos, error de consulta")
+                return None
+            time.sleep(62)
+            reintentos += 1
+            datos = self.get_historic_data_day(
+                province_code = province_code,
+                estacion_code = estacion_code,
+                tipo = tipo,
+                start_date = start_date,
+                end_date = end_date_consulta
+            )
+            if not datos or not isinstance(datos, dict):
+                return None 
+            
+        # Control de caso de ingesta fallida    
+        if datos.get('status') == 'FAILED':
+            logger.error(f"La obtención de datos para el rango de fechas: {start_date} - {end_date} falló")
+            return None
+
         return datos
         
     @circuit(cls = CircuitBreakerPersonalizado)
@@ -367,17 +357,20 @@ class DataServiceClient(BaseClient):
     @circuit(cls = CircuitBreakerPersonalizado)
     def get_datos_sensores(
         self, 
-        euis : list[str],
+        eui : str,
+        #euis : list[str],
         fecha_inicio : date,
-        fecha_fin : date
+        fecha_fin : date,
+        nombre_dtagro : str,
+        nombre_predictor : str,
     ):
         try:
-            if not all([euis, fecha_inicio, fecha_fin]):
+            if not all([eui, fecha_inicio, fecha_fin]):
                 raise ValueError("Error, para consultar datos de sensores, se deben indicar los siguientes parámetros (eui, fecha_inicio, fecha_fin)")
             url = f"{self.base_sensores_url}?"
-            for eui in euis:
-                url += f"eui={eui}&"
-            url += f"fecha_inicio={fecha_inicio}&fecha_fin={fecha_fin}"
+            #for eui in euis:
+            #    url += f"eui={eui}&"
+            url += f"eui={eui}&fecha_inicio={fecha_inicio}&fecha_fin={fecha_fin}&nombre_dt_agro={nombre_dtagro}&nombre_predictor={nombre_predictor}"
 
             response = self._make_request(
                 url = url,
@@ -402,13 +395,17 @@ class DataServiceClient(BaseClient):
     @circuit(cls = CircuitBreakerPersonalizado)
     def get_plagas_por_cultivo(
         self,
-        cultivo : str
+        cultivo : str,
+        id_plaga : Optional[str]
     ):
         try:
             if not cultivo:
                 raise ValueError("Error, se debe indicar el nombre del cultivo para obtener sus plagas asociadas")
 
             url = f"{self.base_crop_url}/plague?cultivos={cultivo}"
+
+            if id_plaga:
+                url += f"&plaga={id_plaga}"
 
             response = self._make_request(
                 url = url,

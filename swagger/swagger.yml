@@ -49,11 +49,11 @@ paths:
             schema:
               type: object
               properties:
-                province:
+                codigo_provincia:
                   type: string
                   description: Código de provincia (excluyente con estacion)
                   example: "CC"
-                estacion:
+                codigo_estacion:
                   type: string
                   description: Código de estación meteorológica (excluyente con province)
                   example: "4452X"
@@ -70,12 +70,12 @@ paths:
               sinEvaluacion:
                 summary: Petición básica por provincia
                 value:
-                  province: "CC"
+                  codigo_provincia: "CC"
                   evaluacion: "false"
               conEvaluacionVariedades:
                 summary: Petición con evaluación de variedades
                 value:
-                  province: "CC"
+                  codigo_provincia: "CC"
                   evaluacion: "true"
                   variedades: "merlot, tempranillo"
       responses:
@@ -128,11 +128,11 @@ paths:
             schema:
               type: object
               properties:
-                provinciaId:
+                codigo_provincia:
                   type: string
                   description: ID de la provincia (excluyente con ccaaId)
                   example: "CC"
-                ccaaId:
+                codigo_ccaa:
                   type: string
                   description: ID de la comunidad autónoma (excluyente con provinciaId)
                   example: "11"
@@ -160,17 +160,17 @@ paths:
               soloZona:
                 summary: Predicción básica por provincia
                 value:
-                  provinciaId: "CC"
+                  codigo_provincia: "CC"
               conVariedades:
                 summary: Con evaluación de variedades
                 value:
-                  provinciaId: "CC"
+                  codigo_provincia: "CC"
                   evaluacion_var: true
                   variedades: ["merlot", "tempranillo"]
               conLocalidades:
                 summary: Con evaluación de localidades
                 value:
-                  provinciaId: "CC"
+                  codigo_provincia: "CC"
                   evaluacion_loc: true
                   localidades: ["plasencia", "cáceres"]
       responses:
@@ -261,7 +261,7 @@ paths:
         Obtiene la predicción de riesgo de plagas estimada para un cultivo en un rango
         de fechas, combinando datos de sensores IoT DTAgro con datos meteorológicos del SiAR.
         Los sensores tienen prioridad sobre los datos del SiAR.
-        Devuelve la evaluación día a día de cada plaga en el período indicado.
+        Devuelve la evaluación día a día de cada plaga seleccionada en el período indicado.
       parameters:
         - name: format
           in: query
@@ -296,33 +296,80 @@ paths:
                   format: date-time
                   description: Fin del período de evaluación (ISO 8601)
                   example: "2025-04-30T00:00:00Z"
+                id_plaga:
+                  type: string
+                  description: Identificador público de la plaga a evaluar
+                  example: "PLAGA-TOMATE-01"
                 datos_sensores:
                   type: array
                   description: >
                     Lista de EUIs de sensores IoT DTAgro a consultar.
                     Si se omite se usarán exclusivamente datos del SiAR.
                   items:
-                    type: string
-                  example: ["0004A30B00E9A1B2", "0004A30B00E9A1C3"]
+                    type: object
+                    properties:
+                      sensor: 
+                        type: string
+                        example: "a840419a0188cc08"
+                      nombre_dt_agro: 
+                        type: string
+                        example: "Leaf_Moisture"
+                      nombre_predictor_plaga: 
+                        type: string
+                        example: "humedad_foliar"
                 parcela:
                   type: string
                   description: ID público de la parcela para contextualizar el cálculo (opcional)
                   example: "PARC-001"
+                codigo_estacion:
+                  type: string
+                  description: Código identificador de la estación sobre la que se quiere recopilar datos climáticos históricos 
+                    como salvaguarda para el análisis (opcional)
+                  example: "CC01"
+                codigo_provincia:
+                  type: string
+                  description: Código identificador de la provincia sobre la que se quiere recopilar datos climáticos históricos 
+                    como salvaguarda para el análisis (opcional)
+                  example: "CC"
             examples:
-              soloSiAR:
-                summary: Sin sensores, usa datos SiAR
+              conSensoresParcelaProvincia:
+                summary: Con sensores IoT, parcela y provincias
                 value:
                   cultivo: "vid"
                   fecha_inicio: "2025-04-01T00:00:00Z"
                   fecha_fin: "2025-04-30T00:00:00Z"
-              conSensores:
-                summary: Con sensores IoT y parcela
-                value:
-                  cultivo: "vid"
-                  fecha_inicio: "2025-04-01T00:00:00Z"
-                  fecha_fin: "2025-04-30T00:00:00Z"
-                  datos_sensores: ["0004A30B00E9A1B2"]
+                  id_plaga: "PLAGA-TOMATE-01"
+                  datos_sensores: [{"sensor" : "a840419a0188cc08", "nombre_dt_agro": "Leaf_Moisture", "nombre_predictor_plaga": "humedad_foliar"}]
                   parcela: "PARC-001"
+                  codigo_provincia: "CC"
+              conSensoresParcelaEstacion:
+                summary: Con sensores IoT, parcela y estaciones meteorológicas
+                value:
+                  cultivo: "vid"
+                  fecha_inicio: "2025-04-01T00:00:00Z"
+                  fecha_fin: "2025-04-30T00:00:00Z"
+                  id_plaga: "PLAGA-TOMATE-01"
+                  datos_sensores: [{"sensor" : "a840419a0188cc08", "nombre_dt_agro": "Leaf_Moisture", "nombre_predictor_plaga": "humedad_foliar"}]
+                  parcela: "PARC-001"
+                  codigo_estacion: "CC01"
+              conSensoresProvincia:
+                summary: Con sensores IoT y provincias
+                value:
+                  cultivo: "vid"
+                  fecha_inicio: "2025-04-01T00:00:00Z"
+                  fecha_fin: "2025-04-30T00:00:00Z"
+                  id_plaga: "PLAGA-TOMATE-01"
+                  datos_sensores: [{"sensor" : "a840419a0188cc08", "nombre_dt_agro": "Leaf_Moisture", "nombre_predictor_plaga": "humedad_foliar"}]
+                  codigo_provincia: "CC"
+              conSensoresEstacion:
+                summary: Con sensores IoT y estaciones meteorológicas
+                value:
+                  cultivo: "vid"
+                  fecha_inicio: "2025-04-01T00:00:00Z"
+                  fecha_fin: "2025-04-30T00:00:00Z"
+                  id_plaga: "PLAGA-TOMATE-01"
+                  datos_sensores: [{"sensor" : "a840419a0188cc08", "nombre_dt_agro": "Leaf_Moisture", "nombre_predictor_plaga": "humedad_foliar"}]
+                  codigo_estacion: "CC01"
       responses:
         "200":
           description: Predicción estimada de plagas día a día
@@ -826,6 +873,51 @@ components:
         tipo:
           type: string
           example: "Insecto"
+        ventana_temporal:
+          type: array
+          items: 
+            type: object
+            properties:
+              modo:
+                type: string
+                description: Nombre del modo que se ha configurado de ventana temporal
+                enum:
+                  - acumulacion_gdd
+                  - consecutivo
+                example: "acumulacion_gdd"
+              temperatura_base:
+                type: integer
+                description: Temperatura base definida en la plaga
+                example: 10
+              gdd_objetivo:
+                type: integer
+                description: GDD acumulado objetivo
+                example: 600
+              dias_ventana:
+                type: integer
+                description: Dias consecutivos para calcular el GDD acumulado
+                example: 28
+              nive_si_cumple:
+                type: string
+                description: Nivel de riesgo si se consigue el GDD objetivo en los `dias_ventana` definidos
+                example: "CRITICA"
+        condiciones_evaluables:
+          type: array
+          items:
+            type: object
+            properties:
+              tipo:
+                type: string
+                description: Identificador del tipo de dato climático que se debe evaluar
+                example: "temperatura_suelo"
+              valor:
+                type: integer
+                description: Valor umbral sobre el que se debe evaluar el valor del tipo de dato climático 
+                example: 15
+              operador:
+                type: string
+                description: Operador que se aplica a la evaluación de operandos
+                example: ">="
         datos_probabilidad:
           type: array
           items:

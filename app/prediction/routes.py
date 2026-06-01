@@ -40,8 +40,8 @@ def prediccion_heladas_observadas(
     try:
         # Datos obtenidos de las querys sobre la petición
         request_body = request.get_json()
-        province_code = request_body.get('province')
-        estacion_code = request_body.get('estacion')
+        province_code = request_body.get('codigo_provincia')
+        estacion_code = request_body.get('codigo_estacion')
         incluir_evaluacion = request_body.get('evaluacion', False)
         variedades = request_body.get('variedades')
 
@@ -87,7 +87,7 @@ def prediccion_heladas_observadas(
         datos_prediccion, estaciones = PredictionService.obtener_predicciones_helada_observadas(
             province_code = province_code,
             estacion_code = estacion_code,
-            type = tipo.lower(),
+            tipo = tipo.lower(),
             incluir_evaluacion_variedades = incluir_evaluacion,
             variedades = variedades_lista
         )
@@ -147,8 +147,8 @@ def prediccion_heladas_futuras(
     try:
         # Contenido del cuerpo de la peticion
         request_body = request.get_json()
-        provinciaId = request_body.get('provinciaId')
-        ccaaId = request_body.get('ccaaId')
+        provinciaId = request_body.get('codigo_provincia')
+        ccaaId = request_body.get('codigo_ccaa')
         incluir_evaluacion_variedad = request_body.get('evaluacion_var', False)
         incluir_evaluacion_localidad = request_body.get('evaluacion_loc', False)
         variedades = request_body.get('variedades') # Lista de variedades
@@ -176,8 +176,7 @@ def prediccion_heladas_futuras(
                 variedades_disponibles = PredictionService.listar_variedades_disponibles()
 
                 nombres_disponibles = [v['nombre'].lower() for v in variedades_disponibles]
-                cultivo_asociado = variedades_disponibles[0]['nombre_cultivo']
-
+                cultivo_asociado = next((v['nombre_cultivo'] for v in variedades_disponibles if v['nombre'] in variedades), None)
                 for v in variedades_lista:
                     if v not in nombres_disponibles:
                         raise APIException(
@@ -220,7 +219,6 @@ def prediccion_heladas_futuras(
         if quiere_pdf:
             pdf_queue = queue.Queue()
 
-        print(variedades_lista)
         generar_informe_heladas_background(
             current_app._get_current_object(), 
             datos_prediccion = datos_dict, 
@@ -328,8 +326,55 @@ def predecir_riesgo_plagas_estimadas():
     cultivo = datos_peticion.get('cultivo')
     fecha_inicio_str = datos_peticion.get('fecha_inicio')
     fecha_fin_str = datos_peticion.get('fecha_fin')
+    id_plaga = datos_peticion.get('id_plaga')
     datos_sensores = datos_peticion.get('datos_sensores')
     parcela_id = datos_peticion.get('parcela', None)
+    codigo_estacion = datos_peticion.get('codigo_estacion', None)
+    codigo_provincia = datos_peticion.get('codigo_provincia', None)
+
+    # ========================
+    # VALIDADORES ENTRANTES
+    # ========================
+
+    if not all([cultivo, fecha_inicio_str, fecha_fin_str, id_plaga, datos_sensores]):
+        raise APIException(
+            message = "Todos los parámetros deben de estar definidos",
+            status  = 400,
+            error   = 'Invalid Parameters'
+        )
+
+    if not isinstance(datos_sensores, list):
+        raise APIException(
+            message = "El campo datos_sensores debe de ser una lista",
+            status  = 400,
+            error   = "Bad Request"  
+        )
+    
+    for dato in datos_sensores:
+        if not isinstance(dato, dict):
+            raise APIException(
+                message = "El contenido de datos_sensores deben ser diccionarios",
+                status  = 400,
+                error   = "Bad Request"
+            )
+        
+    plagas_asociadas_cultivo = PredictorPlagasService._obtener_plagas_asociadas_cultivo(cultivo, id_plaga)
+    existe = False
+    for plaga in plagas_asociadas_cultivo[0]['plaga']:
+        if id_plaga == plaga['public_id']:
+            existe = True
+            break
+    
+    if existe is False:
+        raise APIException(
+            message = f"El identificador de plaga no está asociado a ninguna plaga del cultivo {cultivo}",
+            status  = 400,
+            error   = "Bad Request"
+        )
+    
+    # ========================
+    #  OPERACIONES
+    # ========================
 
     # Parseo de fechas
     fecha_inicio = datetime.fromisoformat(fecha_inicio_str.replace('Z', '+00:00')).date()
@@ -337,9 +382,12 @@ def predecir_riesgo_plagas_estimadas():
 
     resultado = PredictorPlagasService.obtener_prediccion_plagas_estimadas(
         cultivo = cultivo,
-        datos_sensores = datos_sensores,
-        fecha_inicio = fecha_inicio,
-        fecha_fin = fecha_fin
+        datos_sensores   = datos_sensores,
+        fecha_inicio     = fecha_inicio,
+        fecha_fin        = fecha_fin,
+        id_plaga         = id_plaga,
+        codigo_estacion  = codigo_estacion,
+        codigo_provincia = codigo_provincia
     )
 
     resultado_response = dataclass_to_json(resultado)
@@ -372,6 +420,12 @@ def predecir_riesgo_plagas_estimadas():
         try:
             ruta_pdf = pdf_queue.get(timeout = 30)
             print(ruta_pdf)
+            
+            # CONTROL DE SEGURIDAD CONTRA FALLOS EN EL PIPELINE
+            if ruta_pdf is None:
+                logging.error("El pipeline de generación/firma del informe devolvió None.")
+                return jsonify({"error": "No se pudo generar o firmar el informe debido a un error interno."}), 500
+                
             return send_file(
                 ruta_pdf,
                 mimetype = "application/pdf",

@@ -1,0 +1,423 @@
+{
+    "cultivo": "Tomate",
+    "fecha_inicio": "2026-05-01",
+    "fecha_final": "2026-05-20",
+    "plagas_evaluadas": [
+        {
+            "plaga_id": "PLAGA-TOMATE-02",
+            "nombre": "Meloidogyne spp.",
+            "tipo": "nematodo",
+            "ventana_temporal": [
+                {
+                    "modo": "acumulacion_gdd",
+                    "temperatura_base": 10,
+                    "gdd_objetivo": 600,
+                    "dias_ventana": 28,
+                    "nivel_si_cumple": "CRITICA"
+                }
+            ],
+            "condiciones_evaluables": [
+                {
+                    "tipo": "temperatura_suelo",
+                    "valor": 15,
+                    "operador": ">="
+                }
+            ],
+            "datos_probabilidad": [
+                {
+                    "fecha": "2026-05-01",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.57,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 218.29,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-02",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.72,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 219.89,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-03",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.78,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 221.0,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-04",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.74,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 221.55,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-05",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.54,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 221.82,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-06",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.47,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 222.54,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-07",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.59,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 223.17,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-08",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.76,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 223.36,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-09",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.78,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 223.29,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-10",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.57,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 223.52,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-11",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.37,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 223.82,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-12",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.44,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 223.82,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-13",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.44,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 223.68,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-14",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.53,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 223.51,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-15",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.57,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 222.83,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-16",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.48,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 222.02,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-17",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.58,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 221.07,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-18",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.67,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 220.0,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-19",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 1/1 condiciones",
+                    "condiciones_cumplidas": [
+                        {
+                            "variable": "temperatura_suelo",
+                            "valor_real": 18.78,
+                            "operador": ">=",
+                            "umbral": 15,
+                            "fuente": "sensor"
+                        }
+                    ],
+                    "condiciones_pendientes": [
+                        {
+                            "gdd_acumulado": 219.2,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                },
+                {
+                    "fecha": "2026-05-20",
+                    "nivel_riesgo": "sin_riesgo",
+                    "mensaje": "Evaluación Meloidogyne spp.: 0/1 condiciones",
+                    "condiciones_cumplidas": [],
+                    "condiciones_pendientes": [
+                        "Sin datos para temperatura_suelo",
+                        {
+                            "gdd_acumulado": 210.59,
+                            "gdd_objetivo": 600
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

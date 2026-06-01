@@ -968,7 +968,7 @@ class InformeHeladaObservadaService:
         # ── PORTADA ──────────────────────────────────────────────────── #
         story.append(Spacer(1, 0.4 * inch))
         story.append(Paragraph(
-            "INFORME DE HELADAS OBSERVADAS",
+            "INFORME DE HELADAS OBSERVADAS<br/><font size='12'>SISTEMA AGRO-PREDICT</font>",
             ParagraphStyle("Portada", parent=estilo_titulo_seccion, fontSize=17, alignment=1)
         ))
         story.append(Paragraph(

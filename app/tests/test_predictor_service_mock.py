@@ -254,7 +254,7 @@ class TestObtenerPrediccionesHeladaObservadas:
                 estacion_code=None,
                 incluir_evaluacion_variedades=False,
                 variedades=None,
-                type="Dia"
+                tipo="Dia"
             )
  
         assert prediccion is not None
@@ -272,7 +272,7 @@ class TestObtenerPrediccionesHeladaObservadas:
                     estacion_code=None,
                     incluir_evaluacion_variedades=False,
                     variedades=None,
-                    type="Dia"
+                    tipo="Dia"
                 )
  
     def test_llama_a_get_historic_data_con_rango_correcto(self, cliente_mock, datos_historicos_validos):
@@ -289,14 +289,14 @@ class TestObtenerPrediccionesHeladaObservadas:
                 estacion_code=None,
                 incluir_evaluacion_variedades=False,
                 variedades=None,
-                type="Dia"
+                tipo="Dia"
             )
  
         # Comprobamos los argumentos con los que se llamó al cliente
         call_kwargs = cliente_mock.get_historic_data.call_args.kwargs
         assert call_kwargs['end_date'] == hoy
         assert call_kwargs['province_code'] == "CC"
-        assert call_kwargs['type'] == "Dia"
+        assert call_kwargs['tipo'] == "Dia"
  
  
 # ==============================================================================

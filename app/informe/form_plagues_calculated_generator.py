@@ -325,7 +325,7 @@ class InformePlagaService:
         # ====== PORTADA / RESUMEN GLOBAL ======
         story.append(Spacer(1, 0.4 * inch))
         story.append(Paragraph(
-            "INFORME DE RIESGOS DE PLAGAS Y ENFERMEDADES",
+            "INFORME DE RIESGOS DE PLAGAS Y ENFERMEDADES<br/><font size='12'>SISTEMA AGRO-PREDICT</font>",
             ParagraphStyle("TituloPrincipal", parent=estilo_titulo, fontSize=16, alignment=1)
         ))
         story.append(Spacer(1, 0.15 * inch))

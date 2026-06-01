@@ -1430,7 +1430,7 @@ class PredictionService():
         estacion_code : Optional[str],
         incluir_evaluacion_variedades : bool,
         variedades : Optional[list[str]],
-        type : str
+        tipo : str
     ):
         """
         Obtiene predicciones de heladas basada en datos observados historicos
@@ -1450,9 +1450,9 @@ class PredictionService():
         hoy = date.today()
         # Registro la fecha de inicio de las observaciones - últimos 6 meses
         if hoy.month >= 10:
-            inicio_anio_agricola = date(hoy.year, 10, 3)
+            inicio_anio_agricola = date(hoy.year, 10, 1)
         else:
-            inicio_anio_agricola = date(hoy.year - 1, 10, 3)
+            inicio_anio_agricola = date(hoy.year - 1, 10, 1)
 
         fecha_inicio = inicio_anio_agricola
 
@@ -1461,7 +1461,7 @@ class PredictionService():
         datos = client.get_historic_data(
             province_code = province_code,
             estacion_code = estacion_code,
-            type = type,
+            tipo = tipo,
             start_date = fecha_inicio,
             end_date = hoy
         )
