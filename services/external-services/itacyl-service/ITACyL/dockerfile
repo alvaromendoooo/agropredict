@@ -1,0 +1,33 @@
+# Fase 1. Compilación del proyecto
+FROM maven:3.9.4-eclipse-temurin-21-alpine AS builder
+
+# Persona encargada del docker file
+MAINTAINER mendorr
+
+# Incluyo en el contenedor el directorio base donde colgará todo el código de la aplicación
+WORKDIR /app
+
+# Copio el archivo pom.xml y descargo las dependencias
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
+
+# Copi el resto del código fuente en el workdir
+COPY src ./src
+
+# Fase 2. Compilo y empaqueto la aplicación
+RUN mvn -X clean package -DskipTests
+
+# Imagen base para ejecutar el proyecto compilado
+FROM eclipse-temurin:21-jre-alpine
+
+# Directorio de trabajo
+WORKDIR /app
+
+# Copiamos el JAR ejecutable desde la carpeta target generado tras la compilación y empaquetacion
+COPY --from=builder /app/target/*.jar app.jar
+
+# Expongo el puerto de la aplicacion
+EXPOSE 8087
+
+# Comando para ejecutar la aplicacion cuando se lance el contenedor
+ENTRYPOINT ["java", "-jar", "app.jar"]
