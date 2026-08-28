@@ -1,0 +1,6 @@
+Paso 1: Configuracion del proyecto
+Paso 2: Cliente HTTP
+Paso 3: Parser
+Paso 4: Scheduler
+Paso 5: Supervisor
+Paso 6: Orquestador

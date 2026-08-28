@@ -1,0 +1,42 @@
+# ================================
+# Build
+# ================================
+FROM elixir:1.19-alpine AS build
+
+RUN apk add --no-cache build-base git openssl-dev
+
+WORKDIR /app
+ENV MIX_ENV=prod
+
+RUN mix local.hex --force && \
+    mix local.rebar --force
+
+COPY mix.exs mix.lock ./
+RUN mix deps.get --only prod && mix deps.compile
+
+COPY config ./config
+COPY lib ./lib
+
+RUN mix compile && mix release
+
+# ================================
+# Runtime (MISMA imagen exacta)
+# ================================
+FROM elixir:1.19-alpine
+
+RUN addgroup -g 1000 aemet && \
+    adduser -D -u 1000 -G aemet aemet
+
+WORKDIR /app
+
+COPY --from=build --chown=aemet:aemet /app/_build/prod/rel/aemet_api ./
+
+USER aemet
+
+ENV HOME=/app \
+    MIX_ENV=prod \
+    PORT=4000
+
+EXPOSE 4000
+
+CMD ["bin/aemet_api", "start"]
