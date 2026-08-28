@@ -1,0 +1,83 @@
+name: Deploymet Orchestation
+
+on:
+  repository_dispatch:
+    types: ["deploy"]
+
+permissions:
+  contents: write
+
+jobs:
+  update_tags:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+      is_main: ${{ steps.check.outputs.is_main }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 
+
+      - name: Setup branch
+        id: branch
+        run: |
+          BRANCH="${{ github.event.client_payload.branch }}"
+          IS_MAIN=${{ github.event.client_payload.branch == 'main' }}
+          echo "is_main=$IS_MAIN" >> $GITHUB_OUTPUT
+
+          if [ "$BRANCH" != "main" ]; then
+            git fetch origin $BRANCH 2>/dev/null && git checkout $BRANCH \
+              || git checkout -b $BRANCH
+          fi
+
+      - name: Update image tags
+        run: |
+          sed -i "s|mendo1/agro-predict:${{ github.event.client_payload.service }}-[^ ]*|mendo1/agro-predict:${{ github.event.client_payload.tag }}|g" no-gpu/compose.yml
+
+      - name: Check for changes
+        id: check
+        run: |
+          git add docker/compose.yml no-gpu/compose.yml
+          if git diff --cached --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "is_main=${{ steps.branch.outputs.is_main }}" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "is_main=${{ steps.branch.outputs.is_main }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/agro-predict-tfg-2026/agro-predict-orchestator.git
+          git commit -m "chore: update ${{ github.event.client_payload.service }} to ${{ github.event.client_payload.tag }}"
+          git push origin HEAD
+
+  deploy_vms:
+    needs: [update_tags]
+    if: needs.update_tags.outputs.changed == 'true' && needs.update_tags.outputs.is_main == 'true'
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        vm:
+          - { ip: "${{ vars.VM_IP_AWS }}", user: "ubuntu", ruta: "${{ vars.RUTA_AWS }}" }
+          #- { ip: "${{ vars.VM_IP_AZURE }}", user: "${{ vars.AZURE_USER }}", ruta: "${{ vars.RUTA_AZURE }}"} # Descomentar cuendo tenga memoria suficiente Auzure VM
+
+    steps:
+      - name: Deploy to VM
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ matrix.vm.ip }}
+          username: ${{ matrix.vm.user }}
+          key: ${{ secrets.VM_SSH_AWS }}
+          script: |
+            cd ${{ matrix.vm.ruta }}
+            git fetch origin
+            git restore --source=origin/main --staged --worktree -- .
+            docker compose -f no-gpu/compose.yml down
+            docker compose -f no-gpu/compose.yml pull
+            docker compose -f no-gpu/compose.yml up -d --force-recreate --remove-orphans

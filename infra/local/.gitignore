@@ -1,0 +1,5 @@
+.env
+.secrets
+.vars
+payload.json
+backup.sql
