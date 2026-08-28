@@ -1,0 +1,13 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+*.tfvars
+.env
+
+# Excepciones: estos tfvars de ejemplo sí pueden subirse
+!*.tfvars.example
+*.txt
+# OS
+.DS_Store
