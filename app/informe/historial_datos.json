@@ -166,5 +166,53 @@
     "localidad": null,
     "provincia": null,
     "altitud": null
+  },
+  {
+    "fecha": "02/06/2026",
+    "tipo": "variedad",
+    "nombre": "lauranne",
+    "temp_min": 17,
+    "temp_max": null,
+    "nivel": "moderado",
+    "porcentaje_riesgo": 34.99999994547476,
+    "localidad": null,
+    "provincia": null,
+    "altitud": null
+  },
+  {
+    "fecha": "02/06/2026",
+    "tipo": "variedad",
+    "nombre": "guara",
+    "temp_min": 17,
+    "temp_max": null,
+    "nivel": "moderado",
+    "porcentaje_riesgo": 34.99999994547476,
+    "localidad": null,
+    "provincia": null,
+    "altitud": null
+  },
+  {
+    "fecha": "21/06/2026",
+    "tipo": "variedad",
+    "nombre": "lauranne",
+    "temp_min": 24,
+    "temp_max": null,
+    "nivel": "debil",
+    "porcentaje_riesgo": 34.99998886797776,
+    "localidad": null,
+    "provincia": null,
+    "altitud": null
+  },
+  {
+    "fecha": "21/06/2026",
+    "tipo": "variedad",
+    "nombre": "guara",
+    "temp_min": 24,
+    "temp_max": null,
+    "nivel": "debil",
+    "porcentaje_riesgo": 34.99998886797776,
+    "localidad": null,
+    "provincia": null,
+    "altitud": null
   }
 ]

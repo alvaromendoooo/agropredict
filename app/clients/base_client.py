@@ -32,12 +32,12 @@ class BaseClient:
                 print("QUERY PARAMS:", kwargs["params"], flush=True)
 
             print("===================================\n", flush=True)
-
+            timeout = kwargs.pop("timeout", self.timeout)
             try: 
                 response = requests.request(
                     method = method,
                     url = url,
-                    timeout = self.timeout,
+                    timeout = timeout,
                     **kwargs
                 )
 

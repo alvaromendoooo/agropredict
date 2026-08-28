@@ -138,7 +138,6 @@ class InformePlagaEstimadaService:
                 [Paragraph("Cultivo", estilo_celda_negrita), Paragraph(f"{nombre_cultivo} (<i>{nombre_cientifico}</i>)" if nombre_cientifico else nombre_cultivo, estilo_celda_normal)],
                 [Paragraph("Descripción del cultivo", estilo_celda_negrita), Paragraph(descripcion_cultivo, estilo_celda_normal)],
                 [Paragraph("Localización (centroide)", estilo_celda_negrita), Paragraph(coordenadas, estilo_celda_normal)],
-                [Paragraph("Período de actividad", estilo_celda_negrita), Paragraph(f"{fi} → {ff}", estilo_celda_normal)],
                 [Paragraph("Identificador de parcela", estilo_celda_negrita), Paragraph(parcela.get("public_id", "-"), estilo_celda_normal)],
             ]
 
@@ -163,7 +162,7 @@ class InformePlagaEstimadaService:
         return elementos
 
     @staticmethod
-    def crear_tabla_fuentes_datos(sensores: list, usa_meteo: bool, styles) -> list:
+    def crear_tabla_fuentes_datos(sensores: list, usa_meteo: bool, styles, provincia: str, estacion: str) -> list:
         elementos = []
         
         estilo_encabezado = ParagraphStyle("EncabezadoFuente", fontName="Helvetica-Bold", fontSize=8, textColor=colors.white)
@@ -188,7 +187,7 @@ class InformePlagaEstimadaService:
             datos_tabla.append([
                 Paragraph("Estación meteorológica (SiAR)", estilo_celda_bold),
                 Paragraph("Red de estaciones oficiales de la Junta de Extremadura. Complementa contingencias de datos (HR ambiental, precipitación acumulada, viento).", estilo_celda_normal),
-                Paragraph("Provincia: CC — Agregación: Diaria", estilo_celda_normal)
+                Paragraph(f"Provincia: {provincia} — Agregación: Diaria", estilo_celda_normal) if provincia else Paragraph(f"Estación: {estacion} — Agregación: Diaria", estilo_celda_normal),
             ])
 
         # Ajuste estricto al ancho de rejilla (1.7 + 3.5 + 1.7 = 6.9 pulgadas)
@@ -260,6 +259,8 @@ class InformePlagaEstimadaService:
 
     @staticmethod
     def crear_tabla_resumen_plagas(plagas_evaluadas: list) -> Table:
+        styles = getSampleStyleSheet()
+        estilo_celda = styles['Normal']
         cabecera = ["Agente de Riesgo Evaluado", "Taxonomía", "Días Crítica", "Días Preventiva", "Días Sin Riesgo", "Muestra Total"]
         col_widths = [1.9 * inch, 0.8 * inch, 1.0 * inch, 1.1 * inch, 1.3 * inch, 0.8 * inch]
 
@@ -273,12 +274,12 @@ class InformePlagaEstimadaService:
             dias_sin_riesgo = sum(1 for d in datos if d['nivel_riesgo'].lower() == 'sin_riesgo')
             
             datos_tabla.append([
-                plaga['nombre'],
-                plaga['tipo'].capitalize(),
-                str(dias_critica),
-                str(dias_preventiva),
-                str(dias_sin_riesgo),
-                f"{total_dias} d"
+                Paragraph(plaga['nombre'], estilo_celda),
+                Paragraph(plaga['tipo'].capitalize(), estilo_celda),
+                Paragraph(str(dias_critica), estilo_celda),
+                Paragraph(str(dias_preventiva), estilo_celda),
+                Paragraph(str(dias_sin_riesgo), estilo_celda),
+                Paragraph(f"{total_dias} d", estilo_celda),
             ])
         
         tabla = Table(datos_tabla, colWidths=col_widths, repeatRows=1)
@@ -375,8 +376,8 @@ class InformePlagaEstimadaService:
     
     @staticmethod
     def crear_tabla_evolucion_diaria(datos_probabilidad: list, nombre_plaga: str) -> Table:
-        datos_mostrar = datos_probabilidad[-21:] if len(datos_probabilidad) > 21 else datos_probabilidad
-        
+        #datos_mostrar = datos_probabilidad[-21:] if len(datos_probabilidad) > 21 else datos_probabilidad
+        datos_mostrar = datos_probabilidad
         cabecera = ["Fecha", "Nivel Riesgo", "Condiciones Evaluadas Cumplidas", "Condiciones Pendientes / Umbral"]
         col_widths = [0.9 * inch, 1.0 * inch, 2.5 * inch, 2.5 * inch]
         
@@ -449,7 +450,7 @@ class InformePlagaEstimadaService:
         fila_bloques = [""] * num_columnas
         fila_fechas = [""] * num_columnas
         
-        estilo_fecha = ParagraphStyle("FechaGrafico", fontName="Helvetica", fontSize=5.5, alignment=1, leading=7)
+        estilo_fecha = ParagraphStyle("FechaGrafico", fontName="Helvetica", fontSize=5.5, alignment=1, leading=7, splitLongWords=False)
         
         estilos_celdas = []
         for idx, registro in enumerate(datos_muestra):
@@ -534,8 +535,9 @@ class InformePlagaEstimadaService:
             Paragraph(
                 f"<b>Fase 2 — Verificación de condición de suelo:</b> Superado el umbral GDD, se comprueba "
                 f"adicionalmente: <b>{texto_secundaria}</b>. Solo si ambas fases se cumplen simultáneamente "
-                f"el día recibe nivel <b>CRÍTICO</b>. Si el GDD se cumple pero la condición de suelo no, "
-                f"el nivel se rebaja a <b>PREVENTIVO</b>.",
+                f"el día recibe nivel <b>CRÍTICO</b>. Si el GDD se cumple pero la condición simple de evaluación para un día no, "
+                f"el nivel se rebaja a <b>PREVENTIVO</b>. Finalmente, si se cumple la condición simple de evaluación para un día"
+                f", y el GDD diario consigue <b>un valor >= 70% del GDD objetivo</b>, el nivel de riesgo pasa a <b>PREVENTIVO</b>.",
                 estilo_cuerpo_nota
             ),
         ]
@@ -562,248 +564,256 @@ class InformePlagaEstimadaService:
     @staticmethod
     def crear_informe_estimado(
         datos: dict,
-        parcelas: list = None,
-        sensores: list = None,
-        usa_meteo: bool = False
+        parcelas: list  = None,
+        sensores: list  = None,
+        usa_meteo: bool = False,
+        provincia: str  = None,
+        estacion: str   = None
     ):
-        if not datos or 'plagas_evaluadas' not in datos:
-            print("Error: datos no contiene la estructura esperada")
-            return None
-        
-        directorio = Path(__file__).resolve().parent
-        directorio_reports = directorio / 'reports'
-        directorio_reports.mkdir(parents=True, exist_ok=True)
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        nombre_archivo = f"reporte_riesgos_{datos['cultivo'].lower()}_{timestamp}.pdf"
-        ruta_pdf = directorio_reports / nombre_archivo
-        
-        # AJUSTE CRÍTICO: bottomMargin fijado en 2.1 pulgadas para blindar de forma absoluta
-        # el espacio vertical (Y: 50 a 150) reservado para el estampado criptográfico de PyHanko.
-        doc = SimpleDocTemplate(
-            str(ruta_pdf),
-            pagesize=letter,
-            topMargin=1.3 * inch,   
-            bottomMargin=2.1 * inch,  
-            leftMargin=0.8 * inch,
-            rightMargin=0.8 * inch,
-            title=f"{TITULO_INFORME} - {datos['cultivo']}",
-            author=AUTOR
-        )
-        
-        styles = getSampleStyleSheet()
-        
-        estilo_titulo_principal = ParagraphStyle(
-            "TituloPrincipal",
-            parent=styles["Heading1"],
-            fontSize=14,
-            textColor=COLOR_PRIMARIO,
-            alignment=1,
-            spaceAfter=10,
-        )
-        
-        estilo_titulo = ParagraphStyle(
-            "TituloSeccion",
-            parent=styles["Heading1"],
-            fontSize=11,
-            textColor=COLOR_PRIMARIO,
-            spaceAfter=5,
-            spaceBefore=12,
-        )
-        
-        estilo_subtitulo = ParagraphStyle(
-            "SubtituloSeccion",
-            parent=styles["Heading2"],
-            fontSize=10,
-            textColor=COLOR_SECUNDARIO,
-            spaceAfter=4,
-            spaceBefore=8,
-        )
-        
-        estilo_normal = ParagraphStyle(
-            "Normal_Custom",
-            parent=styles["Normal"],
-            fontSize=9,
-            leading=13,
-            spaceAfter=4,
-        )
-        
-        estilo_resumen = ParagraphStyle(
-            "Resumen",
-            parent=styles["Normal"],
-            fontSize=8,
-            textColor=colors.dimgrey,
-            leading=11,
-        )
-        
-        story = []
-        
-        # ====== PORTADA / RESUMEN GLOBAL ======
-        story.append(Spacer(1, 0.15 * inch))
-        story.append(Paragraph(
-            f"INFORME TÉCNICO DE RIESGOS DE PLAGAS VIA SERIES TEMPORALES<br/><font size='12'>SISTEMA AGRO-PREDICT — CULTIVO: {datos['cultivo'].upper()}</font>",
-            estilo_titulo_principal
-        ))
-        story.append(Spacer(1, 0.05 * inch))
-        
-        total_dias = (
-            datetime.strptime(datos['fecha_final'], "%Y-%m-%d") -
-            datetime.strptime(datos['fecha_inicio'], "%Y-%m-%d")
-        ).days + 1
-
-        periodo_texto = (
-            f"<b>Período Cronológico Analizado:</b> {datos['fecha_inicio']} hasta {datos['fecha_final']}<br/>"
-            f"<b>Rango Temporal Absoluto:</b> {total_dias} días de monitorización activa.<br/>"
-            f"<b>Agentes de Riesgo Biológico Evaluados:</b> {len(datos['plagas_evaluadas'])} vectores."
-        )
-
-        story.append(Paragraph(periodo_texto, estilo_normal))
-        story.append(HRFlowable(width="100%", thickness=1.2, color=COLOR_SECUNDARIO, spaceBefore=4, spaceAfter=8))
-        
-        total_registros = sum(len(p['datos_probabilidad']) for p in datos['plagas_evaluadas'])
-        total_critica = sum(
-            1 for p in datos['plagas_evaluadas'] 
-            for d in p['datos_probabilidad'] 
-            if d['nivel_riesgo'].lower() == 'critica'
-        )
-        total_preventiva = sum(
-            1 for p in datos['plagas_evaluadas'] 
-            for d in p['datos_probabilidad'] 
-            if d['nivel_riesgo'].lower() == 'preventiva'
-        )
-        
-        stats_text = (
-            f"<b>Métricas Consolidadas de Alertas:</b><br/>"
-            f"• Alertas en Fase <b>CRÍTICA</b>: <font color='#721C24'><b>{total_critica} registros</b></font> (Requiere intervención fitosanitaria inmediata).<br/>"
-            f"• Alertas en Fase <b>PREVENTIVA</b>: <font color='#856404'><b>{total_preventiva} registros</b></font> (Incrementar frecuencia de monitoreo en campo).<br/>"
-            f"• Estados <b>SIN RIESGO</b> Activo: <font color='#155724'><b>{total_registros - total_critica - total_preventiva} registros</b></font> (Condiciones bioclimáticas estables)."
-        )
-
-        story.append(Paragraph(stats_text, estilo_normal))
-        story.append(Spacer(1, 0.05 * inch))
-        
-        leyenda = """
-        <b>Leyenda Operativa Analítica:</b> &nbsp;&nbsp;
-        <font color="#721C24">■ <b>CRÍTICA (Condiciones Óptimas de Desarrollo)</b></font>  &nbsp;&nbsp;|&nbsp;&nbsp;
-        <font color="#856404">■ <b>PREVENTIVA (Umbral de Riesgo Inicial)</b></font>  &nbsp;&nbsp;|&nbsp;&nbsp;
-        <font color="#155724">■ <b>SIN RIESGO DETECTADO</b></font>
-        """
-        story.append(Paragraph(leyenda, estilo_resumen))
-        story.append(Spacer(1, 0.1 * inch))
-
-        # ====== SECCIÓN CONTEXTO: PARCELA ======
-        if parcelas:
-            story.append(Paragraph("1. CONTEXTO OPERATIVO DE LA PARCELA", estilo_titulo))
-            story.append(HRFlowable(width="100%", thickness=0.8, color=COLOR_PRIMARIO, spaceAfter=4))
-            elementos_parcela = InformePlagaEstimadaService.crear_tabla_contexto_parcela(parcelas, styles)
-            story.extend(elementos_parcela)
-            story.append(Spacer(1, 0.1 * inch))
-
-        # ====== SECCIÓN FUENTES DE DATOS ======
-        if sensores or usa_meteo:
-            story.append(Paragraph("2. AUDITORÍA DE FUENTES DE DATOS UTILIZADAS", estilo_titulo))
-            story.append(HRFlowable(width="100%", thickness=0.8, color=COLOR_PRIMARIO, spaceAfter=4))
-
-            descripcion_fuentes = (
-                "El motor predictivo de Agro-Predict ejecuta sus modelos de simulación matemática basándose "
-                "en la ingesta multi-fuente descrita a continuación. Los sensores IoT locales computan "
-                "microclima en dosel, priorizándose su lectura. Ante fallas de red, el sistema realiza una "
-                "conmutación failover automática hacia los nodos de la red agrometeorológica pública SiAR."
+        try:
+            if not datos or 'plagas_evaluadas' not in datos:
+                print("Error: datos no contiene la estructura esperada")
+                return None
+            
+            directorio = Path(__file__).resolve().parent
+            directorio_reports = directorio / 'reports'
+            directorio_reports.mkdir(parents=True, exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            nombre_archivo = f"reporte_riesgos_{datos['cultivo'].lower()}_{timestamp}.pdf"
+            ruta_pdf = directorio_reports / nombre_archivo
+            
+            # AJUSTE CRÍTICO: bottomMargin fijado en 2.1 pulgadas para blindar de forma absoluta
+            # el espacio vertical (Y: 50 a 150) reservado para el estampado criptográfico de PyHanko.
+            doc = SimpleDocTemplate(
+                str(ruta_pdf),
+                pagesize=letter,
+                topMargin=1.3 * inch,   
+                bottomMargin=2.1 * inch,  
+                leftMargin=0.8 * inch,
+                rightMargin=0.8 * inch,
+                title=f"{TITULO_INFORME} - {datos['cultivo']}",
+                author=AUTOR
             )
-            story.append(Paragraph(descripcion_fuentes, estilo_normal))
+            
+            styles = getSampleStyleSheet()
+            
+            estilo_titulo_principal = ParagraphStyle(
+                "TituloPrincipal",
+                parent=styles["Heading1"],
+                fontSize=14,
+                textColor=COLOR_PRIMARIO,
+                alignment=1,
+                spaceAfter=10,
+            )
+            
+            estilo_titulo = ParagraphStyle(
+                "TituloSeccion",
+                parent=styles["Heading1"],
+                fontSize=11,
+                textColor=COLOR_PRIMARIO,
+                spaceAfter=5,
+                spaceBefore=12,
+            )
+            
+            estilo_subtitulo = ParagraphStyle(
+                "SubtituloSeccion",
+                parent=styles["Heading2"],
+                fontSize=10,
+                textColor=COLOR_SECUNDARIO,
+                spaceAfter=4,
+                spaceBefore=8,
+            )
+            
+            estilo_normal = ParagraphStyle(
+                "Normal_Custom",
+                parent=styles["Normal"],
+                fontSize=9,
+                leading=13,
+                spaceAfter=4,
+            )
+            
+            estilo_resumen = ParagraphStyle(
+                "Resumen",
+                parent=styles["Normal"],
+                fontSize=8,
+                textColor=colors.dimgrey,
+                leading=11,
+            )
+            
+            story = []
+            
+            # ====== PORTADA / RESUMEN GLOBAL ======
+            story.append(Spacer(1, 0.15 * inch))
+            story.append(Paragraph(
+                f"INFORME TÉCNICO DE RIESGOS DE PLAGAS VIA SERIES TEMPORALES<br/><font size='12'>SISTEMA AGRO-PREDICT — CULTIVO: {datos['cultivo'].upper()}</font>",
+                estilo_titulo_principal
+            ))
             story.append(Spacer(1, 0.05 * inch))
+            
+            total_dias = (
+                datetime.strptime(datos['fecha_final'], "%Y-%m-%d") -
+                datetime.strptime(datos['fecha_inicio'], "%Y-%m-%d")
+            ).days + 1
 
-            elementos_fuentes = InformePlagaEstimadaService.crear_tabla_fuentes_datos(sensores or [], usa_meteo, styles)
-            story.extend(elementos_fuentes)
+            periodo_texto = (
+                f"<b>Período Cronológico Analizado:</b> {datos['fecha_inicio']} hasta {datos['fecha_final']}<br/>"
+                f"<b>Rango Temporal Absoluto:</b> {total_dias} días de monitorización activa.<br/>"
+                f"<b>Agentes de Riesgo Biológico Evaluados:</b> {len(datos['plagas_evaluadas'])} vectores."
+            )
+
+            story.append(Paragraph(periodo_texto, estilo_normal))
+            story.append(HRFlowable(width="100%", thickness=1.2, color=COLOR_SECUNDARIO, spaceBefore=4, spaceAfter=8))
+            
+            total_registros = sum(len(p['datos_probabilidad']) for p in datos['plagas_evaluadas'])
+            total_critica = sum(
+                1 for p in datos['plagas_evaluadas'] 
+                for d in p['datos_probabilidad'] 
+                if d['nivel_riesgo'].lower() == 'critica'
+            )
+            total_preventiva = sum(
+                1 for p in datos['plagas_evaluadas'] 
+                for d in p['datos_probabilidad'] 
+                if d['nivel_riesgo'].lower() == 'preventiva'
+            )
+            
+            stats_text = (
+                f"<b>Métricas Consolidadas de Alertas:</b><br/>"
+                f"• Alertas en Fase <b>CRÍTICA</b>: <font color='#721C24'><b>{total_critica} registros</b></font> (Requiere intervención fitosanitaria inmediata).<br/>"
+                f"• Alertas en Fase <b>PREVENTIVA</b>: <font color='#856404'><b>{total_preventiva} registros</b></font> (Incrementar frecuencia de monitoreo en campo).<br/>"
+                f"• Estados <b>SIN RIESGO</b> Activo: <font color='#155724'><b>{total_registros - total_critica - total_preventiva} registros</b></font> (Condiciones bioclimáticas estables)."
+            )
+
+            story.append(Paragraph(stats_text, estilo_normal))
+            story.append(Spacer(1, 0.05 * inch))
+            
+            leyenda = """
+            <b>Leyenda Operativa Analítica:</b> &nbsp;&nbsp;
+            <font color="#721C24">■ <b>CRÍTICA (Condiciones Óptimas de Desarrollo)</b></font>  &nbsp;&nbsp;|&nbsp;&nbsp;
+            <font color="#856404">■ <b>PREVENTIVA (Umbral de Riesgo Inicial)</b></font>  &nbsp;&nbsp;|&nbsp;&nbsp;
+            <font color="#155724">■ <b>SIN RIESGO DETECTADO</b></font>
+            """
+            story.append(Paragraph(leyenda, estilo_resumen))
             story.append(Spacer(1, 0.1 * inch))
 
-        # ====== TABLA RESUMEN DE PLAGAS ======
-        story.append(Paragraph("3. CUADRO DE MANDO RESUMIDO DE RIESGOS", estilo_titulo))
-        story.append(HRFlowable(width="100%", thickness=0.8, color=COLOR_PRIMARIO, spaceAfter=6))
-        
-        tabla_resumen = InformePlagaEstimadaService.crear_tabla_resumen_plagas(datos['plagas_evaluadas'])
-        story.append(tabla_resumen)
-        story.append(PageBreak()) 
-        
-        # ====== DETALLE POR PLAGA ======
-        story.append(Paragraph("4. ANÁLISIS DINÁMICO Y AUDITORÍA DETALLADA POR VECTOR", estilo_titulo))      
-        story.append(HRFlowable(width="100%", thickness=0.8, color=COLOR_PRIMARIO, spaceAfter=8))
-        
-        for idx, plaga in enumerate(datos['plagas_evaluadas'], start=1):
-            nombre_plaga = plaga['nombre']
-            tipo_plaga = plaga['tipo'].capitalize()
-            datos_probabilidad = plaga['datos_probabilidad']
-            
-            elementos_plaga = []
-            elementos_plaga.append(Paragraph(
-                f"4.{idx}. {nombre_plaga} — Clasificación Biológica: <font size='9'><b>{tipo_plaga}</b></font>",
-                estilo_subtitulo
-            ))
-            
-            dias_critica = sum(1 for d in datos_probabilidad if d['nivel_riesgo'].lower() == 'critica')
-            dias_preventiva = sum(1 for d in datos_probabilidad if d['nivel_riesgo'].lower() == 'preventiva')
-            dias_sin = len(datos_probabilidad) - dias_critica - dias_preventiva
-            
-            stats_plaga = f"""
-            <b>Distribución de Alertas en el Periodo:</b> &nbsp;&nbsp;
-            Fase Crítica: <font color='#721C24'><b>{dias_critica} d</b></font> &nbsp;|&nbsp;
-            Fase Preventiva: <font color='#856404'><b>{dias_preventiva} d</b></font> &nbsp;|&nbsp;
-            Estable sin riesgo: <font color='#155724'><b>{dias_sin} d</b></font>
-            """
-            elementos_plaga.append(Paragraph(stats_plaga, estilo_normal))
-            elementos_plaga.append(Spacer(1, 0.05 * inch))
-            
-            if len(datos_probabilidad) >= 5:
-                try:
-                    elementos_plaga.append(Paragraph("<b>Distribución y Tendencia de Riesgos (Últimos 30 días):</b>", estilo_resumen))
-                    elementos_plaga.append(Spacer(1, 0.02 * inch))
-                    grafico = InformePlagaEstimadaService.crear_grafico_evolucion_temporal(datos_probabilidad, nombre_plaga)
-                    elementos_plaga.append(grafico)
-                    elementos_plaga.append(Spacer(1, 0.08 * inch))
-                except Exception:
-                    pass
-            
-            ventanas = plaga.get('ventana_temporal', [])
-            ventana_gdd = next((v for v in ventanas if v.get('modo') == 'acumulacion_gdd'), None)
-            if ventana_gdd:
-                condiciones_evaluables = plaga.get('condiciones_evaluables', [])
-                nota_gdd = InformePlagaEstimadaService._crear_nota_metodologica_gdd(
-                    ventana=ventana_gdd,
-                    condiciones_evaluables=condiciones_evaluables,
-                    styles=styles
+            # ====== SECCIÓN CONTEXTO: PARCELA ======
+            if parcelas:
+                story.append(Paragraph("1. CONTEXTO OPERATIVO DE LA PARCELA", estilo_titulo))
+                story.append(HRFlowable(width="100%", thickness=0.8, color=COLOR_PRIMARIO, spaceAfter=4))
+                elementos_parcela = InformePlagaEstimadaService.crear_tabla_contexto_parcela(parcelas, styles)
+                story.extend(elementos_parcela)
+                story.append(Spacer(1, 0.1 * inch))
+
+            # ====== SECCIÓN FUENTES DE DATOS ======
+            if sensores or usa_meteo:
+                story.append(Paragraph("2. AUDITORÍA DE FUENTES DE DATOS UTILIZADAS", estilo_titulo))
+                story.append(HRFlowable(width="100%", thickness=0.8, color=COLOR_PRIMARIO, spaceAfter=4))
+
+                descripcion_fuentes = (
+                    "El motor predictivo de Agro-Predict ejecuta sus estimaciones de simulación matemática basándose "
+                    "en la ingesta multi-fuente descrita a continuación. Los sensores IoT locales computan "
+                    ", priorizándose su lectura. Ante fallas de red, el sistema realiza una "
+                    "conmutación failover automática hacia los nodos de la red agrometeorológica pública SiAR."
                 )
-                elementos_plaga.extend(nota_gdd)
+                story.append(Paragraph(descripcion_fuentes, estilo_normal))
+                story.append(Spacer(1, 0.05 * inch))
 
-            elementos_plaga.append(Paragraph("<b>Auditoría Operativa de Condiciones de Campo:</b>", estilo_normal))
-            tabla_evolucion = InformePlagaEstimadaService.crear_tabla_evolucion_diaria(datos_probabilidad, nombre_plaga)
-            elementos_plaga.append(tabla_evolucion)
+                elementos_fuentes = InformePlagaEstimadaService.crear_tabla_fuentes_datos(sensores or [], usa_meteo, styles, provincia, estacion)
+                story.extend(elementos_fuentes)
+                story.append(Spacer(1, 0.1 * inch))
+            # ====== TABLA RESUMEN DE PLAGAS ======
+            story.append(Paragraph("3. CUADRO DE MANDO RESUMIDO DE RIESGOS", estilo_titulo))
+            story.append(HRFlowable(width="100%", thickness=0.8, color=COLOR_PRIMARIO, spaceAfter=6))
             
-            story.append(KeepTogether(elementos_plaga))
+            tabla_resumen = InformePlagaEstimadaService.crear_tabla_resumen_plagas(datos['plagas_evaluadas'])
+            story.append(tabla_resumen)
+            story.append(PageBreak()) 
+            # ====== DETALLE POR PLAGA ======
+            story.append(Paragraph("4. ANÁLISIS DINÁMICO Y AUDITORÍA DETALLADA POR VECTOR", estilo_titulo))      
+            story.append(HRFlowable(width="100%", thickness=0.8, color=COLOR_PRIMARIO, spaceAfter=8))
             
-            if idx < len(datos['plagas_evaluadas']):
-                story.append(PageBreak())
-            else:
-                story.append(Spacer(1, 0.15 * inch))
-        
-        # ====== NOTA FINAL Y FINALIZACIÓN DE HISTORIA ======
-        elementos_cierre = []
-        elementos_cierre.append(HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO, spaceBefore=10, spaceAfter=5))
-        
-        nota_final = """
-        <b>Cláusula de Exención y Nota Técnica:</b> Este documento automatizado compila modelos matemáticos bio-climáticos 
-        asociados a los marcos de trabajo del DSL de Agro-Predict. Las alertas CRÍTICAS determinan exclusivamente que las variables de 
-        campo coinciden con los rangos óptimos de desarrollo fisiológico del patógeno/insecto (p.ej. acumulación acumulada de GDD o 
-        ventanas consecutivas húmedas). No sustituye la diagnosis visual de un técnico agrónomo calificado.
-        """
-        elementos_cierre.append(Paragraph(nota_final, estilo_resumen))
-        
-        story.append(KeepTogether(elementos_cierre))
-        
-        # Compilación final
-        doc.build(
-            story,
-            onFirstPage=InformePlagaEstimadaService.encabezado_pie,
-            onLaterPages=InformePlagaEstimadaService.encabezado_pie,
-        )
+            for idx, plaga in enumerate(datos['plagas_evaluadas'], start=1):
+                nombre_plaga = plaga['nombre']
+                tipo_plaga = plaga['tipo'].capitalize()
+                datos_probabilidad = plaga['datos_probabilidad']
+                
+                elementos_plaga = []
+                elementos_plaga.append(Paragraph(
+                    f"4.{idx}. {nombre_plaga} — Clasificación Biológica: <font size='9'><b>{tipo_plaga}</b></font>",
+                    estilo_subtitulo
+                ))
+                
+                dias_critica = sum(1 for d in datos_probabilidad if d['nivel_riesgo'].lower() == 'critica')
+                dias_preventiva = sum(1 for d in datos_probabilidad if d['nivel_riesgo'].lower() == 'preventiva')
+                dias_sin = len(datos_probabilidad) - dias_critica - dias_preventiva
+                
+                stats_plaga = f"""
+                <b>Distribución de Alertas en el Periodo:</b> &nbsp;&nbsp;
+                Fase Crítica: <font color='#721C24'><b>{dias_critica} d</b></font> &nbsp;|&nbsp;
+                Fase Preventiva: <font color='#856404'><b>{dias_preventiva} d</b></font> &nbsp;|&nbsp;
+                Estable sin riesgo: <font color='#155724'><b>{dias_sin} d</b></font>
+                """
+                elementos_plaga.append(Paragraph(stats_plaga, estilo_normal))
+                elementos_plaga.append(Spacer(1, 0.05 * inch))
+                
+                if len(datos_probabilidad) >= 5:
+                    try:
+                        elementos_plaga.append(Paragraph("<b>Distribución y Tendencia de Riesgos (Últimos 30 días):</b>", estilo_resumen))
+                        elementos_plaga.append(Spacer(1, 0.02 * inch))
+                        grafico = InformePlagaEstimadaService.crear_grafico_evolucion_temporal(datos_probabilidad, nombre_plaga)
+                        elementos_plaga.append(grafico)
+                        elementos_plaga.append(Spacer(1, 0.08 * inch))
+                    except Exception:
+                        pass
+                ventanas = plaga.get('ventana_temporal', [])
+                ventana_gdd = None
+                if ventanas:
+                    ventana_gdd = next((v for v in ventanas if v.get('modo') == 'acumulacion_gdd'), None)
+                if ventana_gdd:
+                    condiciones_evaluables = plaga.get('condiciones_evaluables', [])
+                    nota_gdd = InformePlagaEstimadaService._crear_nota_metodologica_gdd(
+                        ventana=ventana_gdd,
+                        condiciones_evaluables=condiciones_evaluables,
+                        styles=styles
+                    )
+                    if isinstance(nota_gdd, list):
+                        elementos_plaga.extend(nota_gdd)
+                    else:
+                        elementos_plaga.append(nota_gdd)
+                elementos_plaga.append(Paragraph("<b>Auditoría Operativa de Condiciones de Campo:</b>", estilo_normal))
+                tabla_evolucion = InformePlagaEstimadaService.crear_tabla_evolucion_diaria(datos_probabilidad, nombre_plaga)
+                elementos_plaga.append(tabla_evolucion)
+                
+                story.append(KeepTogether(elementos_plaga))
+                
+                if idx < len(datos['plagas_evaluadas']):
+                    story.append(PageBreak())
+                else:
+                    story.append(Spacer(1, 0.15 * inch))
+            
+            # ====== NOTA FINAL Y FINALIZACIÓN DE HISTORIA ======
+            elementos_cierre = []
+            elementos_cierre.append(HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO, spaceBefore=10, spaceAfter=5))
+            
+            nota_final = """
+            <b>Cláusula de Exención y Nota Técnica:</b> Este documento automatizado compila estimaciones matemáticas bio-climáticos 
+            asociadas a los marcos de trabajo del DSL de Agro-Predict. Las alertas CRÍTICAS determinan exclusivamente que las variables de 
+            campo coinciden con los rangos óptimos de desarrollo fisiológico del patógeno/insecto (p.ej. acumulación acumulada de GDD). 
+            No sustituye la diagnosis visual de un técnico agrónomo calificado.
+            """
+            elementos_cierre.append(Paragraph(nota_final, estilo_resumen))
+            
+            story.append(KeepTogether(elementos_cierre))
+            
+            # Compilación final
+            doc.build(
+                story,
+                onFirstPage=InformePlagaEstimadaService.encabezado_pie,
+                onLaterPages=InformePlagaEstimadaService.encabezado_pie,
+            )
 
-        return str(ruta_pdf)
+            return str(ruta_pdf)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise

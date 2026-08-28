@@ -236,6 +236,7 @@ class PredictionService():
         for dato in datos.get('datos', []):
             temp_min = dato.get('tempMin')
             humedad_media = dato.get('humedadMedia')
+            
             if temp_min is None or humedad_media is None:
                 continue
 
@@ -249,6 +250,8 @@ class PredictionService():
                     "humedad" : humedad_media,
                     "temperatura" : temp_min,
                     "timestamp" : datetime.strptime(dato.get('fecha'), "%Y-%m-%d").date(),
+                    "timestamp_temp_min" : datetime.fromisoformat(dato.get('horMinTempMin').get('timestamp')).date(),
+                    "timestamp_humedad_min" : datetime.fromisoformat(dato.get('horMinHumMin').get('timestamp')).date(),
                     "estacion_id_temp" : dato.get('horMinTempMin').get('estacion_id'),
                     "estacion_id_hum" : estaciones_humedad
                 }
@@ -257,6 +260,8 @@ class PredictionService():
                     riesgo_helada_blanca.append(registro)
                 # Riesgo de helada negra: baja humedad(< 60%) 
                 elif humedad_media < 60:
+                    print(f"DEBUG: humedad media: {humedad_media}")
+                    print(f"DEBUG: temperatura minima: {temp_min}")
                     riesgo_helada_negra.append(registro)
                 
                 # Reset de datos almacenados
@@ -408,7 +413,7 @@ class PredictionService():
             }.get(nivel_riesgo, TipoAlerta.INFORMATIVA)
 
             alerta = AlertaDTO(
-                mensaje = f"Variedad {variedades} en etapa de {etapa}: riesgo {nivel_riesgo} a temperatura {temperatura:.1}C (riesgo cuantificado: {porcentaje:.0f}%)",
+                mensaje = f"Variedad {variedades} en etapa de {etapa}: riesgo {nivel_riesgo} a temperatura {float(temperatura):.1}C (riesgo cuantificado: {float(porcentaje):.0f}%)",
                 recomendacion = recomendacion_variedades,
                 nivel = tipo_alerta
             )
@@ -1545,5 +1550,4 @@ class PredictionService():
                 incluir_evaulacion_variedades = True if incluir_eval_variedades else False,
                 variedades = variedades if variedades else None
             )
-
         return predicciones, estaciones_utilizadas

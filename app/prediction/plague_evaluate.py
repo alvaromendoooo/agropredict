@@ -60,6 +60,90 @@ class EvaluarPlaga:
             recomendacion = resultado.get("recomendacion", "")
         )
 
+    @staticmethod
+    def _evaluacion_por_consecucion(
+        ventana : dict,
+        datos_hoy,
+        meteo_dia,
+        condiciones_evaluables,
+        condiciones,
+        resultado_simple,
+        datos_por_dia,
+        fecha_evaluacion,
+        nivel_objetivo,
+        plaga
+    ):
+        simple_hoy_cumple = EvaluarPlaga._todas_condiciones_cumplidas(
+            condiciones = condiciones_evaluables,
+            datos_dia   = datos_hoy,
+            meteo_dia   = meteo_dia or {}
+        )
+
+        # Siempre evaluamos el consecutivo para dar contexto
+        resultado_consecutivo = EvaluarPlaga._evaluar_consecutivo(
+            condiciones      = condiciones,
+            datos_por_dia    = datos_por_dia,
+            fecha_evaluacion = fecha_evaluacion,
+            dias_requeridos  = ventana["dias_consecutivos_requeridos"],
+            nivel_objetivo   = nivel_objetivo,
+            plaga            = plaga,
+            meteo            = meteo_dia
+        )
+
+        # Extraer días de forma segura
+        dias = resultado_consecutivo.mensaje.get("dias_consecutivos", 0) \
+            if isinstance(resultado_consecutivo.mensaje, dict) else 0
+        consecutivo_cumple = dias >= ventana["dias_consecutivos_requeridos"]
+
+        # Tabla de niveles:
+        # simple SÍ + consecutivo SÍ → CRITICA
+        # simple SÍ + consecutivo NO → PREVENTIVA
+        # simple NO + consecutivo SÍ → SIN_RIESGO  (día actual rompe racha)
+        # simple NO + consecutivo NO → SIN_RIESGO
+        if simple_hoy_cumple and consecutivo_cumple:
+            nivel_ventana = nivel_objetivo
+        elif simple_hoy_cumple and not consecutivo_cumple:
+            nivel_ventana = TipoAlerta.PREVENTIVA
+        else:
+            nivel_ventana = TipoAlerta.SIN_RIESGO
+
+        # Obtengo información de condiciones evaluables dentro de la ventana temporal para 
+        # aplicar contexto al cálculo
+        condiciones_override_info = []
+        for c in condiciones:
+            tipo = c["tipo"]
+            valor_real = datos_hoy.get(tipo) or (
+                meteo_dia or {}).get(EvaluarPlaga.MAP_SIAR_CONDICIONES.get(tipo, ""), None)
+            condiciones_override_info.append({
+                "variable": tipo,
+                "operador": c.get("operador", "=="),
+                "umbral": c["valor"],
+                "valor_real": round(valor_real, 2) if valor_real is not None else None,
+                "estado": "cumplida" if consecutivo_cumple else "pendiente"
+            })
+
+        return AlertaPlagaDTO(
+            mensaje=resultado_simple.mensaje if simple_hoy_cumple else resultado_consecutivo.mensaje,
+            nivel=nivel_ventana,
+            nombre_plaga=plaga['nombre'],
+            condiciones_cumplidas=(
+                resultado_simple.condiciones_cumplidas + condiciones_override_info + [
+                    {"dias_consecutivos": dias, "dias_requeridos": ventana["dias_consecutivos_requeridos"]}
+                ]
+            ) if (simple_hoy_cumple and consecutivo_cumple) else (
+                resultado_simple.condiciones_cumplidas if simple_hoy_cumple else []
+            ),
+            condiciones_pendientes=(
+                [] if (simple_hoy_cumple and consecutivo_cumple) else
+                resultado_simple.condiciones_pendientes + condiciones_override_info + [
+                    {"dias_consecutivos": dias, "dias_requeridos": ventana["dias_consecutivos_requeridos"]}
+                ]
+            ),
+            tipo_organismo=plaga['tipo'],
+            agente_causante=plaga['agente_causante'],
+            url_referencia=plaga.get('mas_info', ''),
+            recomendacion=""
+        )
     # ── Método principal ──────────────────────────────────────────────────────
 
     @staticmethod
@@ -75,9 +159,6 @@ class EvaluarPlaga:
         ventanas = plaga.get("ventana_temporal") or []
         datos_hoy = datos_por_dia.get(fecha_evaluacion, {})
 
-        # Comprobamos si hay alguna ventana GDD para aplicar lógica compuesta
-        tiene_ventana_gdd = any(v.get("modo") == "acumulacion_gdd" for v in ventanas)
-
         # 1. Evaluación simple del día (siempre se ejecuta)
         resultado_simple = EvaluarPlaga._evaluar_dia_simple(
             condiciones_evaluables = condiciones_evaluables,
@@ -90,14 +171,8 @@ class EvaluarPlaga:
             return resultado_simple
 
         # 2. Evaluar ventanas temporales
-        mejor_nivel     = resultado_simple.nivel
-        mejor_resultado = resultado_simple
-
-        # Si hay GDD + condiciones simples, no mezclo niveles directamente
-        # La evaluación simple solo puntúa de forma independiente cuando NO hay ventana GDD
-        if tiene_ventana_gdd:
-            mejor_nivel     = TipoAlerta.SIN_RIESGO
-            mejor_resultado = resultado_simple  # lo usamos como base informativa
+        mejor_nivel     = TipoAlerta.SIN_RIESGO
+        mejor_resultado = None
 
         resultados_ventanas = []
         for ventana in ventanas:
@@ -106,76 +181,102 @@ class EvaluarPlaga:
             condiciones = ventana.get("condiciones_evaluables_override") or condiciones_evaluables
 
             if modo == "consecutivo":
-                resultado_ventana = EvaluarPlaga._evaluar_consecutivo(
-                    condiciones      = condiciones,
-                    datos_por_dia    = datos_por_dia,
+                
+                resultado_ventana = EvaluarPlaga._evaluacion_por_consecucion(
+                    ventana = ventana,
+                    datos_hoy = datos_hoy,
+                    meteo_dia = meteo_dia,
+                    condiciones_evaluables = condiciones_evaluables,
+                    condiciones = condiciones,
+                    resultado_simple = resultado_simple,
+                    datos_por_dia = datos_por_dia,
                     fecha_evaluacion = fecha_evaluacion,
-                    dias_requeridos  = ventana["dias_consecutivos_requeridos"],
-                    nivel_objetivo   = nivel_objetivo,
-                    plaga            = plaga,
-                    meteo            = meteo_dia
+                    nivel_objetivo = nivel_objetivo,
+                    plaga = plaga
                 )
+                resultados_ventanas.append(resultado_ventana)
+
             elif modo == "acumulacion_gdd":
                 resultado_gdd = EvaluarPlaga._evaluar_gdd(
-                    datos_por_dia    = datos_por_dia,
-                    fecha_evaluacion = fecha_evaluacion,
-                    ventana          = ventana,
-                    nivel_objetivo   = nivel_objetivo,
-                    plaga            = plaga,
-                    meteo_periodico  = meteo_periodica
+                    datos_por_dia=datos_por_dia,
+                    fecha_evaluacion=fecha_evaluacion,
+                    ventana=ventana,
+                    nivel_objetivo=nivel_objetivo,
+                    plaga=plaga,
+                    meteo_periodico=meteo_periodica
                 )
 
-                # GDD es requisito, condición simple es verificación ──
-                # Si el GDD llega a nivel objetivo Y hay condiciones simples que verificar,
-                # el nivel final sube a CRITICA solo si ambas se cumplen.
                 if resultado_gdd.nivel == nivel_objetivo and condiciones_evaluables:
                     todas_secundarias_ok = EvaluarPlaga._todas_condiciones_cumplidas(
-                        condiciones = condiciones_evaluables,
-                        datos_dia   = datos_hoy,
-                        meteo_dia   = meteo_dia or {}
+                        condiciones=condiciones_evaluables,
+                        datos_dia=datos_hoy,
+                        meteo_dia=meteo_dia or {}
                     )
                     if todas_secundarias_ok:
-                        resultado_ventana = resultado_gdd  # CRITICA: GDD + temp suelo OK
+                        resultado_ventana = resultado_gdd  # CRITICA: GDD + condiciones OK
                     else:
-                        # GDD cumplido pero temperatura suelo no: bajamos a PREVENTIVA
                         resultado_ventana = AlertaPlagaDTO(
-                            mensaje                = resultado_gdd.mensaje,
-                            nivel                  = TipoAlerta.PREVENTIVA,
-                            nombre_plaga           = plaga['nombre'],
-                            condiciones_cumplidas  = resultado_gdd.condiciones_cumplidas,
-                            condiciones_pendientes = resultado_gdd.condiciones_pendientes + [
+                            mensaje=resultado_gdd.mensaje,
+                            nivel=TipoAlerta.PREVENTIVA,
+                            nombre_plaga=plaga['nombre'],
+                            condiciones_cumplidas=resultado_gdd.condiciones_cumplidas,
+                            condiciones_pendientes=resultado_gdd.condiciones_pendientes + [
                                 {"variable": "temperatura_suelo", "estado": "pendiente_verificacion"}
                             ],
-                            tipo_organismo         = plaga['tipo'],
-                            agente_causante        = plaga['agente_causante'],
-                            url_referencia         = plaga.get('mas_info', ''),
-                            recomendacion          = ""
+                            tipo_organismo=plaga['tipo'],
+                            agente_causante=plaga['agente_causante'],
+                            url_referencia=plaga.get('mas_info', ''),
+                            recomendacion=""
                         )
                 else:
-                    resultado_ventana = resultado_gdd
-            else:
-                continue
+                    # GDD aún no cumplido: añadir condiciones simples del día como contexto
+                    resultado_ventana = AlertaPlagaDTO(
+                        mensaje=resultado_gdd.mensaje,
+                        nivel=resultado_gdd.nivel,
+                        nombre_plaga=plaga['nombre'],
+                        condiciones_cumplidas=resultado_gdd.condiciones_cumplidas + resultado_simple.condiciones_cumplidas,
+                        condiciones_pendientes=resultado_gdd.condiciones_pendientes + resultado_simple.condiciones_pendientes,
+                        tipo_organismo=plaga['tipo'],
+                        agente_causante=plaga['agente_causante'],
+                        url_referencia=plaga.get('mas_info', ''),
+                        recomendacion=""
+                    )   
 
-            resultados_ventanas.append(resultado_ventana)
+                resultados_ventanas.append(resultado_ventana)
 
-            if EvaluarPlaga.NIVEL_PRIORIDAD.get(resultado_ventana.nivel.value, 0) > \
+            if mejor_resultado is None or \
+            EvaluarPlaga.NIVEL_PRIORIDAD.get(resultado_ventana.nivel.value, 0) > \
             EvaluarPlaga.NIVEL_PRIORIDAD.get(mejor_nivel.value, 0):
-                mejor_nivel = resultado_ventana.nivel
+                mejor_nivel     = resultado_ventana.nivel
                 mejor_resultado = resultado_ventana
 
-        info_ventanas_parciales = [
-            r.mensaje for r in resultados_ventanas
-            if r != mejor_resultado and r.nivel != TipoAlerta.CRITICA
-        ]
-        for info in info_ventanas_parciales:
-            mejor_resultado.condiciones_pendientes.append(info)
+        if not resultados_ventanas:
+            return resultado_simple
+
+        # Tomar el mejor nivel entre todas las ventanas
+        mejor_resultado = max(
+            resultados_ventanas,
+            key=lambda r: EvaluarPlaga.NIVEL_PRIORIDAD.get(r.nivel.value, 0)
+        )
+
+        # Fusionar condiciones cumplidas y pendientes de TODAS las ventanas como contexto
+        todas_cumplidas  = []
+        todas_pendientes = []
+        for r in resultados_ventanas:
+            for c in r.condiciones_cumplidas:
+                if c not in todas_cumplidas:
+                    todas_cumplidas.append(c)
+            for p in r.condiciones_pendientes:
+                # Evitar que entren en pendientes items que ya están en cumplidas
+                if p not in todas_pendientes and p not in todas_cumplidas:
+                    todas_pendientes.append(p)
 
         return AlertaPlagaDTO(
             mensaje=mejor_resultado.mensaje,
-            nivel=mejor_nivel,
+            nivel=mejor_resultado.nivel,
             nombre_plaga=plaga['nombre'],
-            condiciones_cumplidas=mejor_resultado.condiciones_cumplidas,
-            condiciones_pendientes=mejor_resultado.condiciones_pendientes,
+            condiciones_cumplidas=todas_cumplidas,
+            condiciones_pendientes=todas_pendientes,
             tipo_organismo=plaga['tipo'],
             agente_causante=plaga['agente_causante'],
             url_referencia=plaga.get('mas_info', ''),
@@ -262,28 +363,40 @@ class EvaluarPlaga:
     ) -> AlertaPlagaDTO:
         
         dias_consecutivos = 0
-
+        
+        # Contar días consecutivos hacia atrás
         for i in range(dias_requeridos):
             dia = fecha_evaluacion - timedelta(days=i)
             datos_dia = datos_por_dia.get(dia, {})
-            meteo_dia = meteo.get(dia, {}) if isinstance(meteo, dict) else {}
+            # Si el día actual NO cumple, romper el bucle
+            if not EvaluarPlaga._todas_condiciones_cumplidas(condiciones, datos_dia, meteo):
+                continue
+            dias_consecutivos += 1
 
-            if EvaluarPlaga._todas_condiciones_cumplidas(condiciones, datos_dia, meteo_dia):
-                dias_consecutivos += 1
-            # Elimino el break si hay un día que no lo cumple, así veo el registro completo de números de 
-            # días que lo ha cumplido
-
-        cumple = dias_consecutivos >= dias_requeridos
-        nivel = nivel_objetivo if cumple else (
-            TipoAlerta.PREVENTIVA if dias_consecutivos > 0 else TipoAlerta.SIN_RIESGO
-        )
-
+        
+        # Determinar nivel basado SOLO en días consecutivos
+        if dias_consecutivos >= dias_requeridos:
+            nivel = nivel_objetivo  # CRITICA
+            condiciones_pendientes = []
+            condiciones_cumplidas = [{"dias_consecutivos": dias_consecutivos}]
+        elif dias_consecutivos > 0:
+            nivel = TipoAlerta.PREVENTIVA
+            condiciones_pendientes = [{
+                "dias_consecutivos": dias_consecutivos, 
+                "dias_requeridos": dias_requeridos
+            }]
+            condiciones_cumplidas = []
+        else:
+            nivel = TipoAlerta.SIN_RIESGO
+            condiciones_pendientes = []
+            condiciones_cumplidas = []
+        
         return AlertaPlagaDTO(
-            mensaje={"dias_consecutivos" : dias_consecutivos, "dias_requeridos" : dias_requeridos},
+            mensaje={"dias_consecutivos": dias_consecutivos, "dias_requeridos": dias_requeridos},
             nivel=nivel,
             nombre_plaga=plaga['nombre'],
-            condiciones_cumplidas=[{"dias_consecutivos" : dias_consecutivos}] if dias_consecutivos > 0 else [],
-            condiciones_pendientes=[] if cumple else [{"dias_consecutivos" : dias_consecutivos, "dias_requeridos" : dias_requeridos}],
+            condiciones_cumplidas=condiciones_cumplidas,
+            condiciones_pendientes=condiciones_pendientes,
             tipo_organismo=plaga['tipo'],
             agente_causante=plaga['agente_causante'],
             url_referencia=plaga.get('mas_info', ''),
@@ -319,23 +432,22 @@ class EvaluarPlaga:
         usar_meteo_periodico = bool(datos_ventana)
 
         for i in range(dias_a_evaluar):
-            dia = fecha_evaluacion - timedelta(days=i)
-            if datos_por_dia:
-                # Uso dato de sensores por ser prioritarios al cálculo
-                datos_dia = datos_por_dia.get(dia, {})
-                t_max     = datos_dia.get("temperatura_max")
-                t_min     = datos_dia.get("temperatura_min")
-            elif usar_meteo_periodico:
-                # Fallback: datos de sensores periódico por ventana temporal en caso de no obtener datos de sensores
-                datos_dia_siar = datos_ventana.get(dia, {})
-                t_max          = datos_dia_siar.get("tempMax")
-                t_min          = datos_dia_siar.get("tempMin")
-            else:
-                return None
+            dia = fecha_evaluacion - timedelta(days=i) # Dia actual evaluable del periodo
+            
+            datos_dia      = datos_por_dia.get(dia, {}) if datos_por_dia else {} # Obtengo datos de sensor
+            datos_dia_siar = datos_ventana.get(dia, {})  if usar_meteo_periodico else {} # Obtengo datos de SiAR
 
+            # Prioridad: sensor → SiAR → None
+            #print(f"DEBUG: datos dia sensores: {datos_dia} - dia: {dia}")
+            #print(f"DEBUG: Datos dia siar: {datos_dia_siar}")
+            t_max = datos_dia.get("temperatura_max") or datos_dia_siar.get("tempMax")
+            t_min = datos_dia.get("temperatura_min") or datos_dia_siar.get("tempMin")
+            #print(f"DEBUG: t_max: {t_max}")
+            #print(f"DEBUG: t_min: {t_min}")
             if t_max is not None and t_min is not None:
                 gdd_dia        = max(0.0, (t_max + t_min) / 2 - temperatura_base)
                 gdd_acumulado += gdd_dia
+                #print(f"DEBUG: gdd_dia: {gdd_dia} - dia: {dia} - t_max: {t_max} - t_min: {t_min} - gdd_acumulado: {gdd_acumulado}")
 
         cumple = gdd_acumulado >= gdd_objetivo
         nivel = nivel_objetivo if cumple else (

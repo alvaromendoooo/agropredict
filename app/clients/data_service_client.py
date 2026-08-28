@@ -3,7 +3,7 @@ from circuitbreaker import circuit
 from config.config import CircuitBreakerPersonalizado
 from flask import Flask
 from typing import Optional
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import requests
 import logging
 import time
@@ -67,7 +67,10 @@ class DataServiceClient(BaseClient):
     ):
         MAX_REINTENTOS = 10
         reintentos = 0 # Salvaguarda para no mantener un bucle infinito
-        end_date_consulta = end_date - timedelta(days = 1) # No dispone de datos provinciales a fecha de hoy hasta el día siguiente
+        if end_date == datetime.today().date():
+            end_date_consulta = end_date - timedelta(days = 1) 
+        else:
+            end_date_consulta = end_date
 
         if province_code and estacion_code:
             logger.error("No se pueden indicar a la vez el codigo de provincia y el codigo de estacion, solo uno de ellos")
@@ -358,24 +361,42 @@ class DataServiceClient(BaseClient):
     def get_datos_sensores(
         self, 
         eui : str,
-        #euis : list[str],
         fecha_inicio : date,
         fecha_fin : date,
         nombre_dtagro : str,
         nombre_predictor : str,
     ):
+        MAX_INTENTOS = 5
         try:
             if not all([eui, fecha_inicio, fecha_fin]):
                 raise ValueError("Error, para consultar datos de sensores, se deben indicar los siguientes parámetros (eui, fecha_inicio, fecha_fin)")
             url = f"{self.base_sensores_url}?"
-            #for eui in euis:
-            #    url += f"eui={eui}&"
-            url += f"eui={eui}&fecha_inicio={fecha_inicio}&fecha_fin={fecha_fin}&nombre_dt_agro={nombre_dtagro}&nombre_predictor={nombre_predictor}"
+            url += f"eui={eui}&fecha_inicio={fecha_inicio}&fecha_fin={fecha_fin + timedelta(days = 1)}&nombre_dt_agro={nombre_dtagro}&nombre_predictor={nombre_predictor}"
+            
+            response = None # Init
+            intentos = 0
+            while intentos < MAX_INTENTOS:
+                try:
+                    response = self._make_request(
+                        url=url,
+                        method='GET',
+                        timeout=95
+                    )
+                    break
 
-            response = self._make_request(
-                url = url,
-                method = 'GET'
-            )
+                except Exception as e:
+                    intentos += 1
+
+                    if intentos >= MAX_INTENTOS:
+                        raise
+
+                    logger.warning(
+                        f"Fallo en la petición ({intentos}/{MAX_INTENTOS}), "
+                        f"reintentando en 120s: {e}"
+                    )
+                    time.sleep(120)
+            if not response:
+                raise RuntimeError(f"No se pudo obtener respuesta tras {MAX_INTENTOS} intentos")
 
             if response.status_code == 404:
                 logger.error("No se han encontrado datos de sensores sobre los parámetros indicados")

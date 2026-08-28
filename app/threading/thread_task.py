@@ -37,6 +37,7 @@ def generar_informe_heladas_background(
     tipo : str,
     zona : Optional[str],
     provincia : Optional[str],
+    estacion : Optional[str],
     cultivo : Optional[str],
     variedades : Optional[list],
     localidades : Optional[list],
@@ -56,8 +57,9 @@ def generar_informe_heladas_background(
             (FirmaService.generar_firma, lambda ruta: ("heladas", None, ruta),{}),
         ]
     elif tipo == "observado":
+        print(f"DEBUG threat: estacion: {estacion}")
         pasos = [
-            (InformeHeladaObservadaService.crear_informe, (datos_prediccion, zona, provincia, estaciones), {}),
+            (InformeHeladaObservadaService.crear_informe, (datos_prediccion, zona, provincia, estacion, estaciones), {}),
             (FirmaService.generar_firma, lambda ruta: ("heladas", None, ruta), {}),
         ]
 
@@ -76,6 +78,8 @@ def generar_informe_plagas_background(
     datos_estimados : Optional[dict],
     parcelas : Optional[dict],
     sensores : Optional[list],
+    provincia : Optional[str],
+    estacion : Optional[str],
     pdf_queue = None,
 ):
     """
@@ -92,7 +96,7 @@ def generar_informe_plagas_background(
         ]
     elif tipo_informe == "estimado":
         pasos = [
-            (InformePlagaEstimadaService.crear_informe_estimado, (datos_estimados, parcelas, sensores, True), {}),
+            (InformePlagaEstimadaService.crear_informe_estimado, (datos_estimados, parcelas, sensores, True, provincia, estacion), {}),
             (FirmaService.generar_firma, lambda ruta: ("plagas", datos_estimados, ruta), {}),    
         ]
 

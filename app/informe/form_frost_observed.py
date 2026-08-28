@@ -666,17 +666,27 @@ class InformeHeladaObservadaService:
         elementos.append(Paragraph("Heladas Negras (T <= 0°C + HR < 60%)", estilo_subtitulo))
 
         if heladas_negras:
-            cabecera_negra = ["Fecha", "Temperatura (°C)", "Estación"]
+            cabecera_negra = ["Fecha Temp. Min.", "Temperatura (°C)", "Temp. Hum. Min.", "Humedad (%)", "Estación (Temp.)", "Fecha Reporte"]
             datos_negra = [cabecera_negra]
 
             for h in heladas_negras:
                 datos_negra.append([
-                    str(h.get("timestamp", "—")),
+                    str(h.get("timestamp_temp_min", "—")),
                     f"{h.get('temperatura', 0):.3f}",
+                    str(h.get("timestamp_humedad_min", "—")),
+                    f"{h.get('humedad', 0):.3f}",
                     str(h.get("estacion_id_temp", "—")),
+                    str(h.get('timestamp', "—")),
                 ])
 
-            col_widths_n = [2.0 * inch, 2.0 * inch, 2.5 * inch]
+            col_widths_n = [
+                1.4 * inch,  # Fecha Temp. Min.
+                1.0 * inch,  # Temperatura
+                1.8 * inch,  # Fecha Hum. Min.
+                1.0 * inch,  # Humedad
+                1.2 * inch,  # Estación
+                1.2 * inch,  # Fecha Reporte
+            ]
             tabla_negra = Table(datos_negra, colWidths=col_widths_n, repeatRows=1)
             tabla_negra.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#C0392B")),
@@ -905,6 +915,7 @@ class InformeHeladaObservadaService:
         predicciones: dict,
         zona: Optional[str] = None,
         provincia: Optional[str] = None,
+        estacion: Optional[str] = None,
         estaciones: Optional[list] = None,   
     ) -> str:
         """
@@ -917,184 +928,188 @@ class InformeHeladaObservadaService:
         :param estaciones: Lista de estaciones utilizadas en el cálculo (opcional)
         :return: Ruta absoluta al PDF generado
         """
-        print(estaciones)
-        if not isinstance(predicciones, dict):
-            raise ValueError("predicciones debe ser un diccionario válido")
+        try:
+            if not isinstance(predicciones, dict):
+                raise ValueError("predicciones debe ser un diccionario válido")
 
-        directorio = Path(__file__).resolve().parent / "reports"
-        directorio.mkdir(parents=True, exist_ok=True)
-        ruta_pdf = directorio / NOMBRE_ARCHIVO
+            directorio = Path(__file__).resolve().parent / "reports"
+            directorio.mkdir(parents=True, exist_ok=True)
+            ruta_pdf = directorio / NOMBRE_ARCHIVO
 
-        # Extraer período para encabezado
-        fecha_inicio = predicciones.get("fecha_comiezo_registros", "")
-        fecha_fin = predicciones.get("fecha_fin_registros", "")
-        tipo_prediccion = predicciones.get("tipo_prediccion", "observada")
+            # Extraer período para encabezado
+            fecha_inicio = predicciones.get("fecha_comiezo_registros", "")
+            fecha_fin = predicciones.get("fecha_fin_registros", "")
+            tipo_prediccion = predicciones.get("tipo_prediccion", "observada")
 
-        doc = SimpleDocTemplate(
-            str(ruta_pdf),
-            pagesize=letter,
-            topMargin=1.2 * inch,
-            bottomMargin=0.9 * inch,
-            leftMargin=1 * inch,
-            rightMargin=1 * inch,
-            title=f"{TITULO_INFORME} — {fecha_inicio} / {fecha_fin}",
-            author=AUTOR,
-        )
+            doc = SimpleDocTemplate(
+                str(ruta_pdf),
+                pagesize=letter,
+                topMargin=1.2 * inch,
+                bottomMargin=0.9 * inch,
+                leftMargin=1 * inch,
+                rightMargin=1 * inch,
+                title=f"{TITULO_INFORME} — {fecha_inicio} / {fecha_fin}",
+                author=AUTOR,
+            )
 
-        # Metadatos para encabezado/pie dinámico
-        doc.periodo_analisis = f"{fecha_inicio} → {fecha_fin}" if fecha_inicio and fecha_fin else "—"
-        doc.tipo_prediccion = tipo_prediccion
+            # Metadatos para encabezado/pie dinámico
+            doc.periodo_analisis = f"{fecha_inicio} → {fecha_fin}" if fecha_inicio and fecha_fin else "—"
+            doc.tipo_prediccion = tipo_prediccion
 
-        styles = getSampleStyleSheet()
+            styles = getSampleStyleSheet()
 
-        estilo_titulo_seccion = ParagraphStyle(
-            "TituloSeccion",
-            parent=styles["Heading1"],
-            fontSize=12,
-            textColor=COLOR_PRIMARIO,
-            spaceAfter=6,
-            spaceBefore=14,
-        )
-        estilo_normal = ParagraphStyle(
-            "NormalDoc",
-            parent=styles["Normal"],
-            fontSize=10,
-            leading=14,
-            spaceAfter=6,
-        )
+            estilo_titulo_seccion = ParagraphStyle(
+                "TituloSeccion",
+                parent=styles["Heading1"],
+                fontSize=12,
+                textColor=COLOR_PRIMARIO,
+                spaceAfter=6,
+                spaceBefore=14,
+            )
+            estilo_normal = ParagraphStyle(
+                "NormalDoc",
+                parent=styles["Normal"],
+                fontSize=10,
+                leading=14,
+                spaceAfter=6,
+            )
 
-        story = []
+            story = []
 
-        # ── PORTADA ──────────────────────────────────────────────────── #
-        story.append(Spacer(1, 0.4 * inch))
-        story.append(Paragraph(
-            "INFORME DE HELADAS OBSERVADAS<br/><font size='12'>SISTEMA AGRO-PREDICT</font>",
-            ParagraphStyle("Portada", parent=estilo_titulo_seccion, fontSize=17, alignment=1)
-        ))
-        story.append(Paragraph(
-            "Análisis Histórico de Datos Agrometeorológicos",
-            ParagraphStyle("SubPortada", parent=styles["Normal"], fontSize=11,
-                           textColor=colors.grey, alignment=1, spaceAfter=4)
-        ))
-        story.append(Spacer(1, 0.1 * inch))
-
-        # Ficha de portada
-        datos_portada = [
-            ["Período analizado", f"{fecha_inicio} → {fecha_fin}"],
-            ["Zona / Provincia", f"{zona or '—'}  /  {provincia or '—'} - {MAPA_CODIGO_PROVINCIA.get(provincia)}"],
-            ["Nivel de riesgo global", predicciones.get("nivel", "—").upper().replace("_", " ")],
-            ["Tipo de predicción", tipo_prediccion.capitalize()],
-            ["Fecha del informe", FECHA],
-        ]
-        tabla_portada = Table(datos_portada, colWidths=[2.3 * inch, 4.2 * inch])
-        tabla_portada.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-            ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
-            ("FONTSIZE", (0, 0), (-1, -1), 10),
-            ("ROWBACKGROUNDS", (0, 0), (-1, -1), [COLOR_FONDO_TABLA, colors.white]),
-            ("GRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
-            ("BOX", (0, 0), (-1, -1), 1, COLOR_PRIMARIO),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("LEFTPADDING", (0, 0), (-1, -1), 8),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ]))
-        story.append(tabla_portada)
-        story.append(Spacer(1, 0.15 * inch))
-
-        # ── 1. CONTEXTO DE CÁLCULO ───────────────────────────────────── #
-        story.append(KeepTogether([
-            Paragraph("1. CONTEXTO DE CÁLCULO", estilo_titulo_seccion),
-            HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO, spaceAfter=6),
-            Spacer(1, 6),
-        ]))
-        story.extend(InformeHeladaObservadaService._seccion_contexto(predicciones, styles))
-        story.append(Spacer(1, 0.2 * inch))
-
-        # ── 1b. ESTACIONES UTILIZADAS [NUEVA — criterio vPedro] ──────── #
-        if estaciones:
-            story.append(KeepTogether([
-                Paragraph("ESTACIONES METEOROLÓGICAS UTILIZADAS", estilo_titulo_seccion),
-                HRFlowable(width="100%", thickness=1, color=COLOR_PRIMARIO, spaceAfter=6),
-                Spacer(1, 6),
-            ]))
-            story.extend(InformeHeladaObservadaService._seccion_estaciones(
-                estaciones=estaciones,
-                fecha_inicio=fecha_inicio or FECHA,
-                styles=styles,
-            ))
-            story.append(Spacer(1, 0.2 * inch))
-
-        # ── 2. RESUMEN EJECUTIVO ─────────────────────────────────────── #
-        story.append(KeepTogether([
-            Paragraph("2. RESUMEN EJECUTIVO", estilo_titulo_seccion),
-            HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO, spaceAfter=6),
-            Spacer(1, 6),
-        ]))
-        story.extend(InformeHeladaObservadaService._seccion_resumen(predicciones, styles))
-        story.append(Spacer(1, 0.2 * inch))
-
-        # ── 3. ALERTAS DETECTADAS ────────────────────────────────────── #
-        story.append(KeepTogether([
-            Paragraph("3. ALERTAS DETECTADAS", estilo_titulo_seccion),
-            HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO, spaceAfter=6),
-            Spacer(1, 6),
-        ]))
-        story.extend(InformeHeladaObservadaService._seccion_alertas(predicciones, styles))
-        story.append(Spacer(1, 0.2 * inch))
-
-        # ── 4. EPISODIOS DE HELADA ───────────────────────────────────── #
-        story.append(PageBreak())
-        story.append(Paragraph("4. EPISODIOS DE HELADA REGISTRADOS", estilo_titulo_seccion))
-        story.append(HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO, spaceAfter=6))
-        story.append(Spacer(1, 6))
-        story.extend(InformeHeladaObservadaService._seccion_tipos_helada(predicciones, styles))
-        story.append(Spacer(1, 0.2 * inch))
-
-        # Gráfico de temperaturas en episodios de helada blanca
-        heladas_blancas = predicciones.get("riesgos_heladas_blancas", [])
-        grafico_blancas = InformeHeladaObservadaService._grafico_heladas_blancas(heladas_blancas)
-        if grafico_blancas:
+            # ── PORTADA ──────────────────────────────────────────────────── #
+            story.append(Spacer(1, 0.4 * inch))
             story.append(Paragraph(
-                "Evolución de temperaturas — Episodios de helada blanca",
-                ParagraphStyle("GraficoTitulo", parent=styles["Normal"],
-                               fontSize=9, textColor=colors.grey, spaceAfter=4)
+                "INFORME DE HELADAS OBSERVADAS<br/><font size='12'>SISTEMA AGRO-PREDICT</font>",
+                ParagraphStyle("Portada", parent=estilo_titulo_seccion, fontSize=17, alignment=1)
             ))
-            story.append(grafico_blancas)
+            story.append(Paragraph(
+                "Análisis Histórico de Datos Agrometeorológicos",
+                ParagraphStyle("SubPortada", parent=styles["Normal"], fontSize=11,
+                            textColor=colors.grey, alignment=1, spaceAfter=4)
+            ))
+            story.append(Spacer(1, 0.1 * inch))
+
+            # Ficha de portada
+            datos_portada = [
+                ["Período analizado", f"{fecha_inicio} → {fecha_fin}"],
+                ["Zona / Provincia", f"{zona if zona else ('Estación' if estacion else '—')}  /  {provincia or estacion or ''} - {MAPA_CODIGO_PROVINCIA.get(provincia) if provincia else MAPA_CODIGO_PROVINCIA.get(estacion[:2])}"],
+                ["Nivel de riesgo global", predicciones.get("nivel", "—").upper().replace("_", " ")],
+                ["Tipo de predicción", tipo_prediccion.capitalize()],
+                ["Fecha del informe", FECHA],
+            ]
+            tabla_portada = Table(datos_portada, colWidths=[2.3 * inch, 4.2 * inch])
+            tabla_portada.setStyle(TableStyle([
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("ROWBACKGROUNDS", (0, 0), (-1, -1), [COLOR_FONDO_TABLA, colors.white]),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
+                ("BOX", (0, 0), (-1, -1), 1, COLOR_PRIMARIO),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]))
+            story.append(tabla_portada)
             story.append(Spacer(1, 0.15 * inch))
 
-        # ── 5. EVALUACIÓN DE VARIEDADES ──────────────────────────────── #
-        eval_variedades = predicciones.get("evaluaciones_variedades")
-        if eval_variedades:
-            story.append(PageBreak())
-            story.append(Paragraph("5. EVALUACIÓN DE VARIEDADES DE CULTIVO", estilo_titulo_seccion))
-            story.append(HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO, spaceAfter=6))
-            story.append(Spacer(1, 6))
-            story.extend(InformeHeladaObservadaService._seccion_variedades(predicciones, styles))
+            # ── 1. CONTEXTO DE CÁLCULO ───────────────────────────────────── #
+            story.append(KeepTogether([
+                Paragraph("1. CONTEXTO DE CÁLCULO", estilo_titulo_seccion),
+                HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO, spaceAfter=6),
+                Spacer(1, 6),
+            ]))
+            story.extend(InformeHeladaObservadaService._seccion_contexto(predicciones, styles))
             story.append(Spacer(1, 0.2 * inch))
 
-            # Gráfico de riesgo por variedad
-            evaluaciones = eval_variedades.get("evaluaciones", [])
-            grafico_variedades = InformeHeladaObservadaService._grafico_riesgo_variedades(evaluaciones)
-            if grafico_variedades:
-                story.append(Paragraph(
-                    "Porcentaje de riesgo por variedad evaluada",
-                    ParagraphStyle("GraficoTituloVar", parent=styles["Normal"],
-                                   fontSize=9, textColor=colors.grey, spaceAfter=4)
+            # ── 1b. ESTACIONES UTILIZADAS [NUEVA — criterio vPedro] ──────── #
+            if estaciones:
+                story.append(KeepTogether([
+                    Paragraph("ESTACIONES METEOROLÓGICAS UTILIZADAS", estilo_titulo_seccion),
+                    HRFlowable(width="100%", thickness=1, color=COLOR_PRIMARIO, spaceAfter=6),
+                    Spacer(1, 6),
+                ]))
+                story.extend(InformeHeladaObservadaService._seccion_estaciones(
+                    estaciones=estaciones,
+                    fecha_inicio=fecha_inicio or FECHA,
+                    styles=styles,
                 ))
-                story.append(grafico_variedades)
+                story.append(Spacer(1, 0.2 * inch))
 
-        encabezado_con_params = partial(
-            InformeHeladaObservadaService._encabezado_pie,
-            localizacion_calculo = provincia
-        )
+            # ── 2. RESUMEN EJECUTIVO ─────────────────────────────────────── #
+            story.append(KeepTogether([
+                Paragraph("2. RESUMEN EJECUTIVO", estilo_titulo_seccion),
+                HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO, spaceAfter=6),
+                Spacer(1, 6),
+            ]))
+            story.extend(InformeHeladaObservadaService._seccion_resumen(predicciones, styles))
+            story.append(Spacer(1, 0.2 * inch))
 
-        # Construir PDF
-        doc.build(
-            story,
-            onFirstPage=encabezado_con_params,
-            onLaterPages=encabezado_con_params,
-        )
+            # ── 3. ALERTAS DETECTADAS ────────────────────────────────────── #
+            story.append(KeepTogether([
+                Paragraph("3. ALERTAS DETECTADAS", estilo_titulo_seccion),
+                HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO, spaceAfter=6),
+                Spacer(1, 6),
+            ]))
+            story.extend(InformeHeladaObservadaService._seccion_alertas(predicciones, styles))
+            story.append(Spacer(1, 0.2 * inch))
 
-        print(f"Informe de heladas observadas generado: {ruta_pdf}")
-        return str(ruta_pdf)
+            # ── 4. EPISODIOS DE HELADA ───────────────────────────────────── #
+            story.append(PageBreak())
+            story.append(Paragraph("4. EPISODIOS DE HELADA REGISTRADOS", estilo_titulo_seccion))
+            story.append(HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO, spaceAfter=6))
+            story.append(Spacer(1, 6))
+            story.extend(InformeHeladaObservadaService._seccion_tipos_helada(predicciones, styles))
+            story.append(Spacer(1, 0.2 * inch))
+
+            # Gráfico de temperaturas en episodios de helada blanca
+            heladas_blancas = predicciones.get("riesgos_heladas_blancas", [])
+            grafico_blancas = InformeHeladaObservadaService._grafico_heladas_blancas(heladas_blancas)
+            if grafico_blancas:
+                story.append(Paragraph(
+                    "Evolución de temperaturas — Episodios de helada blanca",
+                    ParagraphStyle("GraficoTitulo", parent=styles["Normal"],
+                                fontSize=9, textColor=colors.grey, spaceAfter=4)
+                ))
+                story.append(grafico_blancas)
+                story.append(Spacer(1, 0.15 * inch))
+
+            # ── 5. EVALUACIÓN DE VARIEDADES ──────────────────────────────── #
+            eval_variedades = predicciones.get("evaluaciones_variedades")
+            if eval_variedades:
+                story.append(PageBreak())
+                story.append(Paragraph("5. EVALUACIÓN DE VARIEDADES DE CULTIVO", estilo_titulo_seccion))
+                story.append(HRFlowable(width="100%", thickness=1, color=COLOR_SECUNDARIO, spaceAfter=6))
+                story.append(Spacer(1, 6))
+                story.extend(InformeHeladaObservadaService._seccion_variedades(predicciones, styles))
+                story.append(Spacer(1, 0.2 * inch))
+
+                # Gráfico de riesgo por variedad
+                evaluaciones = eval_variedades.get("evaluaciones", [])
+                grafico_variedades = InformeHeladaObservadaService._grafico_riesgo_variedades(evaluaciones)
+                if grafico_variedades:
+                    story.append(Paragraph(
+                        "Porcentaje de riesgo por variedad evaluada",
+                        ParagraphStyle("GraficoTituloVar", parent=styles["Normal"],
+                                    fontSize=9, textColor=colors.grey, spaceAfter=4)
+                    ))
+                    story.append(grafico_variedades)
+
+            encabezado_con_params = partial(
+                InformeHeladaObservadaService._encabezado_pie,
+                localizacion_calculo = provincia
+            )
+
+            # Construir PDF
+            doc.build(
+                story,
+                onFirstPage=encabezado_con_params,
+                onLaterPages=encabezado_con_params,
+            )
+
+            print(f"Informe de heladas observadas generado: {ruta_pdf}")
+            return str(ruta_pdf)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise

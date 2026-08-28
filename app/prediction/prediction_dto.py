@@ -152,6 +152,8 @@ class RiesgoHeladaTipoDTO:
     humedad : float
     temperatura : float
     timestamp : datetime
+    timestamp_humedad_min : datetime
+    timestamp_temp_min : datetime
     estacion_id_temp : int
     estacion_id_hum : list[int]
 

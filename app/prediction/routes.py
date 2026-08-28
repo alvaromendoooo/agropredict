@@ -101,14 +101,15 @@ def prediccion_heladas_observadas(
         pdf_queue = None
         if quiere_pdf:
             pdf_queue = queue.Queue()
-
+        print(f"DEBUG routes: estacion: {estacion_code}")
         generar_informe_heladas_background(
             current_app._get_current_object(), 
             datos_prediccion = datos_json, 
             acumular = False, 
             is_cultivo = incluir_evaluacion,
             zona = "provincial",
-            provincia = province_code,
+            provincia = province_code if province_code else None,
+            estacion = estacion_code if estacion_code else None,
             tipo = "observado",
             pdf_queue = pdf_queue,
             estaciones = estaciones,
@@ -228,6 +229,7 @@ def prediccion_heladas_futuras(
             zona = zona,
             tipo = "futuros",
             provincia = provinciaId if provinciaId else None,
+            estacion = None,
             cultivo = cultivo_asociado if incluir_evaluacion_variedad else None,
             variedades = variedades_lista if incluir_evaluacion_variedad else None,
             localidades = localidad_lista if incluir_evaluacion_localidad else None,
@@ -249,7 +251,7 @@ def prediccion_heladas_futuras(
         return datos_response, 200
     
     except ValueError as e:
-        logger.error(f'ValueError en prediccion_heladas_futuras: {e}')
+        logger.exception(f'ValueError en prediccion_heladas_futuras')
         return jsonify({
             'message': 'Error al procesar los datos',
             'status': 400,
@@ -293,12 +295,14 @@ def prediccion_plagas_calculadas():
 
     generar_informe_plagas_background(
         current_app._get_current_object(),
-        pdf_queue = pdf_queue,
-        plagas = [datos_dict],
-        datos_estimados= None,
-        tipo_informe = "calculado",
-        sensores = None,
-        parcelas = None
+        pdf_queue       = pdf_queue,
+        plagas          = [datos_dict],
+        datos_estimados = None,
+        tipo_informe    = "calculado",
+        sensores        = None,
+        parcelas        = None,
+        estacion        = None,
+        provincia       = None
     )
 
     if quiere_pdf:
@@ -408,12 +412,14 @@ def predecir_riesgo_plagas_estimadas():
 
     generar_informe_plagas_background(
         current_app._get_current_object(),
-        plagas = None,
-        pdf_queue = pdf_queue,
-        datos_estimados= resultado_dict,
-        tipo_informe = "estimado",
-        parcelas = parcelas_asociadas_cultivo if parcelas_asociadas_cultivo else None,
-        sensores = datos_sensores if datos_sensores else None
+        plagas          = None,
+        pdf_queue       = pdf_queue,
+        datos_estimados = resultado_dict,
+        tipo_informe    = "estimado",
+        parcelas        = parcelas_asociadas_cultivo if parcelas_asociadas_cultivo else None,
+        sensores        = datos_sensores if datos_sensores else None,
+        estacion        = codigo_estacion,
+        provincia       = codigo_provincia
     )
 
     if quiere_pdf:

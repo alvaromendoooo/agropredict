@@ -151,7 +151,7 @@ class InformeHeladaService():
             datos_tabla = [cabecera]
             for d in historial_datos:
                 if d['tipo'] == 'variedad':
-                    datos_tabla.append([d['fecha'], d['nombre'], f"{d['temp_min']:.1f}°C" if d['temp_min'] is not None else '-', d['nivel'].upper() if d['nivel'] else '-', f"{d['porcentaje_riesgo']:.0f}%"])
+                    datos_tabla.append([d['fecha'], d['nombre'], f"{float(d['temp_min']):.1f}°C" if d['temp_min'] is not None else '-', d['nivel'].upper() if d['nivel'] else '-', f"{float(d['porcentaje_riesgo']):.0f}%"])
             # Rediseño: sumatoria exacta a 6.5 pulgadas
             col_widths = [1.2*inch, 1.8*inch, 1.1*inch, 1.2*inch, 1.2*inch]
             
@@ -160,7 +160,7 @@ class InformeHeladaService():
             datos_tabla = [cabecera]
             for d in historial_datos:
                 if d['tipo'] == 'localidad':
-                    datos_tabla.append([d['fecha'], d['localidad'] or '-', d['provincia'] or '-', f"{d['temp_min']:.1f}°C", f"{d['temp_max']:.1f}°C" if d['temp_max'] is not None else '-', d['nivel'].upper() if d['nivel'] else '-', f"{d['porcentaje_riesgo']:.0f}%"])
+                    datos_tabla.append([d['fecha'], d['localidad'] or '-', d['provincia'] or '-', f"{float(d['temp_min']):.1f}°C", f"{float(d['temp_max']):.1f}°C" if d['temp_max'] is not None else '-', d['nivel'].upper() if d['nivel'] else '-', f"{float(d['porcentaje_riesgo']):.0f}%"])
             # Rediseño: Corregido desbordamiento previo (sumaba 6.8). Ahora 6.5 exactas.
             col_widths = [0.9*inch, 1.2*inch, 0.9*inch, 0.8*inch, 0.8*inch, 1.0*inch, 0.9*inch]
             
@@ -169,7 +169,7 @@ class InformeHeladaService():
             datos_tabla = [cabecera]
             for d in historial_datos:
                 if d['tipo'] == 'general':
-                    datos_tabla.append([d['fecha'], d.get('estado_cielo', '-'), d.get('precipitaciones', '-'), d['nivel'].upper() if d['nivel'] else '-', f"{d['porcentaje_riesgo']:.0f}%"])
+                    datos_tabla.append([d['fecha'], d.get('estado_cielo', '-'), d.get('precipitaciones', '-'), d['nivel'].upper() if d['nivel'] else '-', f"{float(d['porcentaje_riesgo']):.0f}%"])
             # Rediseño: Corregido desbordamiento previo. Ahora 6.5 exactas.
             col_widths = [1.1*inch, 1.8*inch, 1.4*inch, 1.2*inch, 1.0*inch]
         

@@ -189,7 +189,6 @@ class PredictorPlagasService:
         en acumulacion_gdd y en simple, permitiendo generar evaluaciones simples como 
         base informativa
         """
-        print(f"DEBUG: fecha final {fecha_fin}")
         # Obtengo los datos de SiAR sobre el periodo de días indicado en la ventana temporal
         fecha_inicio_extendido = fecha_inicio - timedelta(days = dias_temporales)
         datos_siar_completos_extendidos = cls._obtener_datos_siar(
