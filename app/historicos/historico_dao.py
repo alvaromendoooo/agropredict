@@ -85,17 +85,17 @@ class HistoricDAO:
 
         horas_pico = {
             "hora_temp_max": obtener_horas_criticas(
-                "temperatura"
+                "temperatura_maxima"
             ),
             "hora_temp_min": obtener_horas_criticas(
-                "temperatura", 
+                "temperatura_minima", 
                 asc = True
             ),
             "hora_humedad_max": obtener_horas_criticas(
-                "humedad"
+                "humedad_maxima"
             ),
             "hora_humedad_min": obtener_horas_criticas(
-                "humedad", 
+                "humedad_minima", 
                 asc = True
             )
         }
@@ -144,7 +144,9 @@ class HistoricDAO:
             # Query que me devuelve las temperaturas en una fecha dada
             query_temperatura = (
                 select(
-                    MedicionClimatica.temperatura
+                    MedicionClimatica.temperatura_media,
+                    MedicionClimatica.temperatura_maxima,
+                    MedicionClimatica.temperatura_minima
                 )
                 .where(
                     MedicionClimatica.timestamp.between(fec_init, fec_fin)
@@ -231,7 +233,7 @@ class HistoricDAO:
                 func.date(MedicionClimatica.timestamp).between(fec_init, fec_fin),
             ]
             if estacion_id:
-                filtros.append(MedicionClimatica.estacion_id == estacion_id)
+                filtros.extend([MedicionClimatica.estacion_id == estacion_id, MedicionClimatica.provincia_id == None])
             if provincia_id:
                 filtros.append(MedicionClimatica.provincia_id == provincia_id)
 
@@ -259,8 +261,8 @@ class HistoricDAO:
             query = (
                 select(
                     func.date_format(MedicionClimatica.timestamp, '%H:00:00').label('hora'),
-                    func.avg(MedicionClimatica.temperatura).label('temp_media'),
-                    func.avg(MedicionClimatica.humedad).label('humedad_media'),
+                    func.avg(MedicionClimatica.temperatura_media).label('temp_media'),
+                    func.avg(MedicionClimatica.humedad_media).label('humedad_media'),
                     func.avg(MedicionClimatica.vel_viento).label('vel_viento'),
                     func.sum(MedicionClimatica.precipitacion).label('precipitacion'),
                     func.avg(MedicionClimatica.radiacion).label('radiacion'),
@@ -325,18 +327,18 @@ class HistoricDAO:
             fecha_truncada = func.date(MedicionClimatica.timestamp).label("fecha")
 
             columnas = [
-                func.avg(MedicionClimatica.temperatura).label('temp_media'),
-                func.max(MedicionClimatica.temperatura).label('temp_max'),
-                func.min(MedicionClimatica.temperatura).label('temp_min'),
-                func.avg(MedicionClimatica.humedad).label("humedad_media"),
-                func.max(MedicionClimatica.humedad).label('humedad_max'),
-                func.min(MedicionClimatica.humedad).label('humedad_min'),
-                func.avg(MedicionClimatica.vel_viento).label("vel_viento"),
-                func.max(MedicionClimatica.vel_viento).label("vel_viento_max"),
-                func.sum(MedicionClimatica.precipitacion).label("precipitacion"),
-                func.avg(MedicionClimatica.radiacion).label("radiacion"),
-                func.avg(MedicionClimatica.etp_mon).label("etp_mon"),
-                func.avg(MedicionClimatica.pep_mon).label("pep_mon"),
+                MedicionClimatica.temperatura_media.label('temp_media'),
+                MedicionClimatica.temperatura_maxima.label('temp_max'),
+                MedicionClimatica.temperatura_minima.label('temp_min'),
+                MedicionClimatica.humedad_media.label("humedad_media"),
+                MedicionClimatica.humedad_maxima.label('humedad_max'),
+                MedicionClimatica.humedad_minima.label('humedad_min'),
+                MedicionClimatica.vel_viento.label("vel_viento"),
+                MedicionClimatica.vel_viento.label("vel_viento_max"),
+                MedicionClimatica.precipitacion.label("precipitacion"),
+                MedicionClimatica.radiacion.label("radiacion"),
+                MedicionClimatica.etp_mon.label("etp_mon"),
+                MedicionClimatica.pep_mon.label("pep_mon"),
                 Provincia.codigo.label('provincia'),
                 fecha_truncada
             ]
@@ -409,18 +411,18 @@ class HistoricDAO:
                 select(
                     anio_truncado,
                     MedicionClimatica.semana.label('semana'),
-                    func.avg(MedicionClimatica.temperatura).label('temp_media'),
-                    func.max(MedicionClimatica.temperatura).label('temp_max'),
-                    func.min(MedicionClimatica.temperatura).label('temp_min'),
-                    func.avg(MedicionClimatica.humedad).label('humedad_media'),
-                    func.max(MedicionClimatica.humedad).label('humedad_max'),
-                    func.min(MedicionClimatica.humedad).label('humedad_min'),
-                    func.avg(MedicionClimatica.vel_viento).label('vel_viento'),
-                    func.max(MedicionClimatica.vel_viento).label('vel_viento_max'),
-                    func.sum(MedicionClimatica.precipitacion).label('precipitacion'),
-                    func.avg(MedicionClimatica.etp_mon).label('etp_mon'),
-                    func.avg(MedicionClimatica.pep_mon).label('pep_mon'),
-                    func.avg(MedicionClimatica.radiacion).label('radiacion'),
+                    MedicionClimatica.temperatura_media.label('temp_media'),
+                    MedicionClimatica.temperatura_maxima.label('temp_max'),
+                    MedicionClimatica.temperatura_minima.label('temp_min'),
+                    MedicionClimatica.humedad_media.label('humedad_media'),
+                    MedicionClimatica.humedad_maxima.label('humedad_max'),
+                    MedicionClimatica.humedad_minima.label('humedad_min'),
+                    MedicionClimatica.vel_viento.label('vel_viento'),
+                    MedicionClimatica.vel_viento.label('vel_viento_max'),
+                    MedicionClimatica.precipitacion.label('precipitacion'),
+                    MedicionClimatica.etp_mon.label('etp_mon'),
+                    MedicionClimatica.pep_mon.label('pep_mon'),
+                    MedicionClimatica.radiacion.label('radiacion'),
                     Estacion.codigo.label('estacion') if estacion_id is not None else None,
                     Provincia.codigo.label('provincia')
                 )

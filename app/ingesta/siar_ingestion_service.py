@@ -4,7 +4,7 @@ from datetime import date, datetime
 from ..external_services.siar_service import SiARService
 from ..ingesta.ingesta_dao import IngestaDAO
 from ..models import MedicionClimatica, Estacion, Provincia
-from helpers.siar_exceptions import SiARFechaInvalidaError
+from helpers.siar_exceptions import SiARFechaInvalidaError, SiARDataNotFound
 from datetime import timedelta
 import logging
 
@@ -24,19 +24,23 @@ class SiarIngestionService:
             provincia = Provincia.query.filter_by(codigo=codigo_provincia_id).first()
 
             medicion = MedicionClimatica(
-                estacion_id   = estacion.id if estacion else None,
-                provincia_id  = provincia.id if provincia else None,
-                semana        = semana,
-                mes           = d_timestamp.month,
-                anio          = anio,
-                timestamp     = d_timestamp,
-                humedad       = d.get('humedad'),
-                temperatura   = d.get('temperatura'),
-                vel_viento    = d.get('vel_viento'),
-                precipitacion = d.get('precipitacion'),
-                radiacion     = d.get('radiacion'),
-                etp_mon       = d.get('etp_mon'),
-                pep_mon       = d.get('pep_mon')
+                estacion_id        = estacion.id if estacion else None,
+                provincia_id       = provincia.id if provincia else None,
+                semana             = semana,
+                mes                = d_timestamp.month,
+                anio               = anio,
+                timestamp          = d_timestamp,
+                humedad_media      = d.get('humedad_media'),
+                humedad_maxima     = d.get('humedad_maxima'),
+                humedad_minima     = d.get('humedad_minima'),
+                temperatura_media  = d.get('temperatura_media'),
+                temperatura_maxima = d.get('temperatura_maxima'),
+                temperatura_minima = d.get('temperatura_minima'),
+                vel_viento         = d.get('vel_viento'),
+                precipitacion      = d.get('precipitacion'),
+                radiacion          = d.get('radiacion'),
+                etp_mon            = d.get('etp_mon'),
+                pep_mon            = d.get('pep_mon')
             )
 
             existe = db.session.query(MedicionClimatica.id).filter_by(
@@ -103,28 +107,32 @@ class SiarIngestionService:
 
             return lista_datos
         
-        except SiARFechaInvalidaError as e:
+        except (SiARFechaInvalidaError, SiARDataNotFound) as e:
             from ..historicos.tasks import programar_consulta_datos_task
-            programar_consulta_datos_task.delay({
-                'tipo'  : tipo.value,
-                'codigo_estacion_id' : codigo_estacion_id,
-                'codigo_provincia_id' : codigo_provincia_id,
-                'fec_init' : fec_init.strftime("%Y-%m-%d"),
-                'fec_fin' : fec_fin.strftime("%Y-%m-%d")
-            })
 
-            IngestaDAO.actualizar_estado(
-                status      = 'PENDING_RETRY',
-                dataset     = 'historico',
-                tipo        = tipo,
-                year        = fec_init.year,
-                month       = fec_init.month,
-                day         = fec_init.day,
-                finish_time = datetime.now(),
-                zona        = "provincia" if codigo_provincia_id else "estacion",
-                error       = str(e),
-                codigo      = codigo_estacion_id if codigo_estacion_id else codigo_provincia_id,
-            )
+            dias_sin_datos = e.dias_sin_datos if hasattr(e, 'dias_sin_datos') else [fec_init]
+
+            for dia in dias_sin_datos:
+                programar_consulta_datos_task.delay({
+                    'tipo'  : tipo.value,
+                    'codigo_estacion_id' : codigo_estacion_id,
+                    'codigo_provincia_id' : codigo_provincia_id,
+                    'fec_init' : fec_init.strftime("%Y-%m-%d"),
+                    'fec_fin' : fec_fin.strftime("%Y-%m-%d")
+                })
+
+                IngestaDAO.actualizar_estado(
+                    status      = 'PENDING_RETRY',
+                    dataset     = 'historico',
+                    tipo        = tipo,
+                    year        = dia.year,
+                    month       = dia.month,
+                    day         = dia.day,
+                    finish_time = datetime.now(),
+                    zona        = "provincia" if codigo_provincia_id else "estacion",
+                    error       = str(e),
+                    codigo      = codigo_estacion_id if codigo_estacion_id else codigo_provincia_id,
+                )
 
         except Exception as e:
             cursor = fec_init
@@ -150,7 +158,6 @@ class SiarIngestionService:
         todas_comunidades = []
 
         for d in data:
-            print(f"DEBUG: {d}")
             if estaciones:
                 codigo_raw = d.get('codigo', '')
 

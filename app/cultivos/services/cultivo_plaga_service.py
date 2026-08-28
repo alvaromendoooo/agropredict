@@ -3,7 +3,7 @@ from ...plagas.plagas_dao import PlagasDAO
 from ..cultivos_dto import (
     CultivoPlagaDTO, 
     CultivoDTO, 
-    PlagaConCalendarioDTO,
+    PlagaConCalendarioAlgoritmoDTO,
     RecursosPlagaDTO
 )
 from ...plagas.plagas_dto import CalendarioDTO
@@ -49,7 +49,7 @@ class CultivoPlagaService():
                         grupo = datos_cultivo.grupo
                     ),
                     plaga = [
-                        PlagaConCalendarioDTO(
+                        PlagaConCalendarioAlgoritmoDTO(
                             public_id = p['plaga'].public_id,
                             nombre = p['plaga'].nombre,
                             agente_causante = p['plaga'].agente_causante,

@@ -125,10 +125,31 @@ class HistoricService:
     # -------------------------------------------------------------------------
 
     @staticmethod
-    def _pending_dto(tipo: TipoHistorico, estado: dict | None = None) -> ProcesoIngestaDTO:
+    def _pending_dto(
+        tipo: TipoHistorico, 
+        estado: str | None = None, 
+        datos: dict | None = None, 
+        dias_sin_datos: list | None = None
+    ) -> ProcesoIngestaDTO:
+        
+        # Si hay datos parciales y todos los faltantes son PENDING_RETRY → PARTIAL
+        if datos is not None and dias_sin_datos:
+            return ProcesoIngestaDTO(
+                status            = 'PARTIAL',
+                datos_solicitados = tipo.value,
+                datos             = datos,
+                dias_sin_datos    = [d.strftime("%Y-%m-%d") for d in dias_sin_datos],
+                started_at        = datetime.now(),
+                finished_at       = datetime.now(),
+                error             = None,
+            )
+
+        # Caso normal: aún hay ingesta en curso
         return ProcesoIngestaDTO(
-            status            = estado['status'] if estado else 'PENDING',
+            status            = estado if estado else 'PENDING',
             datos_solicitados = tipo.value,
+            datos             = None,
+            dias_sin_datos    = None,
             started_at        = datetime.now(),
             finished_at       = None,
             error             = None,
@@ -249,7 +270,7 @@ class HistoricService:
             tipo, estacion_id, provincia_db_id, fec_init, fec_fin
         )
 
-        # Obtengo los dias sin datos almacenados sobre el rango de fechas indicado
+        # 2. Clasificar días faltantes
         dias_faltantes = []
         cursor = fec_init
         while cursor <= fec_fin:
@@ -257,39 +278,68 @@ class HistoricService:
                 dias_faltantes.append(cursor)
             cursor += timedelta(days=1)
 
-        # 2. Si no faltan días, leer directamente de BD
+        # 3. Si no faltan días, leer directamente de BD
         if not dias_faltantes:
             return HistoricService._leer_datos_ready(
                 tipo, estacion_id, provincia_id, fec_init, fec_fin
             )
 
-        # 3. Itero sobre los rangos de fechas faltantes definidos
-        if dias_faltantes:
-            # Obtengo los rangos de fechas ordenados como tuplas
-            rangos = HistoricService._agrupar_dias_contiguos(dias_faltantes)
-            
+        # 4. Separar faltantes: ¿ya sabemos que SiAR no tiene datos (PENDING_RETRY)?
+        dias_sin_datos_siar = []
+        dias_a_ingestar = []
+
+        for dia in dias_faltantes:
+            estado = IngestaDAO.obtener_estado(
+                dataset='historico',
+                tipo=tipo.value,
+                year=dia.year,
+                month=dia.month,
+                day=dia.day,
+                zona="provincia" if provincia_id else "estacion",
+                error=None,
+                codigo=codigo_estacion if codigo_estacion else provincia_id
+            )
+            status = estado['status'] if estado else None
+
+            if status == 'PENDING_RETRY':
+                dias_sin_datos_siar.append(dia)
+            elif status in ('PENDING', 'LOADING'):
+                dias_a_ingestar.append(dia)  # ya en proceso, no relanzar
+            else:
+                dias_a_ingestar.append(dia)  # no existe o falló: hay que ingestar
+
+        # 5. Lanzar ingesta solo para días que realmente lo necesitan
+        if dias_a_ingestar:
+            rangos = HistoricService._agrupar_dias_contiguos(dias_a_ingestar)
             for fec_init_gap, fec_fin_gap in rangos:
-                estado = IngestaDAO.obtener_estado(
-                    dataset = 'historico',
-                    tipo    = tipo.value,
-                    year    = fec_init_gap.year,
-                    month   = fec_init_gap.month,
-                    day     = fec_init_gap.day,
-                    zona    = "provincia" if provincia_id else "estacion",
-                    error   = None,
-                    codigo  = codigo_estacion if codigo_estacion else provincia_id
+                # Evitar relanzar los que ya están PENDING/LOADING
+                estado_rango = IngestaDAO.obtener_estado(
+                    dataset='historico',
+                    tipo=tipo.value,
+                    year=fec_init_gap.year,
+                    month=fec_init_gap.month,
+                    day=fec_init_gap.day,
+                    zona="provincia" if provincia_id else "estacion",
+                    error=None,
+                    codigo=codigo_estacion if codigo_estacion else provincia_id
                 )
-                
-                if estado and estado['status'] in ('PENDING', 'LOADING'):
-                    continue  # este rango ya está en proceso, saltarlo
-                
+                if estado_rango and estado_rango['status'] in ('PENDING', 'LOADING'):
+                    continue
+
                 HistoricService._crear_ingesta_y_lanzar_hilo(
                     app, tipo, fec_init_gap, fec_fin,
                     codigo_estacion, provincia_id,
                     fec_fin_hilo=fec_fin_gap
                 )
+            # Aún hay días reales pendientes de ingesta → seguir devolviendo PENDING
+            return HistoricService._pending_dto(tipo)
+
+        # 6. Todos los faltantes son PENDING_RETRY: devolver datos disponibles + aviso
+        datos = HistoricService._leer_datos_ready(
+            tipo, estacion_id, provincia_id, fec_init, fec_fin
+        )
         
-        return HistoricService._pending_dto(tipo)
+        return HistoricService._pending_dto(tipo, datos=datos, dias_sin_datos=dias_sin_datos_siar)
 
     # -------------------------------------------------------------------------
     # Utilidades

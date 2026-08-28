@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from ..plagas.plagas_dto import PlagaConCalendarioDTO
+from ..plagas.plagas_dto import PlagaConCalendarioAlgoritmoDTO
 from datetime import datetime
 from typing import Optional
 
@@ -53,7 +53,7 @@ class RecursosPlagaDTO:
 @dataclass
 class CultivoPlagaDTO:
     cultivo : CultivoDTO
-    plaga : list[PlagaConCalendarioDTO]
+    plaga : list[PlagaConCalendarioAlgoritmoDTO]
     recursos : Optional[list[RecursosPlagaDTO]]
 
 @dataclass

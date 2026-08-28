@@ -553,6 +553,7 @@ class CultivoService:
             fec_init = inicio_fecha_recuento,
             fec_fin = fin_fecha_recuento
         )
+        print(f"DEBUG: temperaturas: {temperaturas}")
 
         horas_frio_acumuladas = 0
         if codigo_modelo == "UF":

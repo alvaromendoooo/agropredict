@@ -104,8 +104,21 @@ class IngestaDAO:
                 error_message = error_message,
                 codigo        = codigo
             )
-            db.session.add(ingesta)
-            db.session.commit()
+            
+            existe_ingesta = db.session.query(IngestaStatus).filter(
+                IngestaStatus.codigo == codigo,
+                IngestaStatus.tipo == tipo,
+                IngestaStatus.dataset == dataset,
+                IngestaStatus.year == year,
+                IngestaStatus.month == month,
+                IngestaStatus.day == day,
+                IngestaStatus.zona == zona
+            ).first()
+
+            if not existe_ingesta:
+                db.session.add(ingesta)
+                db.session.commit()
+
         except Exception as e:
             logger.error(f"Error creando estado de ingesta: {e}")
             db.session.rollback()
@@ -192,13 +205,20 @@ class IngestaDAO:
             else:
                 sensor = existe_sensor
 
-            medicion = MedicionesSensor(
-                campo               = campo,
-                valor               = valor,
-                timestamp           = timestamp,
-                sensor_id           = sensor.id
-            )
-            db.session.add(medicion)
+            existe_medicion = db.session.query(MedicionesSensor.id).filter(
+                MedicionesSensor.timestamp == timestamp,
+                MedicionesSensor.campo     == campo,
+                MedicionesSensor.sensor_id == sensor.id
+            ).first()
+
+            if not existe_medicion:
+                medicion = MedicionesSensor(
+                    campo               = campo,
+                    valor               = valor,
+                    timestamp           = timestamp,
+                    sensor_id           = sensor.id
+                )
+                db.session.add(medicion)
         except Exception as e:
             logger.error(f"Error creando dato de sensor: {e}")
             db.session.rollback()

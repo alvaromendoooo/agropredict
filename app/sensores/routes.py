@@ -20,8 +20,6 @@ def sensores():
     nombre_dt_agro = request.args.get('nombre_dt_agro', '')
     nombre_predictor = request.args.get('nombre_predictor', '')
 
-    print(euis)
-
     if not all([euis, fecha_inicio, fecha_fin, nombre_dt_agro, nombre_predictor]):
         raise APIException(
             message = "Debe indicarse todos los parámetros de la query (eui, fecha_inicio, fecha_fin)",

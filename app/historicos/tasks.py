@@ -28,7 +28,7 @@ def _build_key(tipo: str, zona: str, fec_init: str, fec_fin: str) -> str:
     return f"{PENDING_TASKS_PREFIX}{tipo}:{zona}:{fec_init}:{fec_fin}"
 
 
-@celery_app.task
+@celery_app.task(ignore_result=True)
 def programar_consulta_datos_task(args: dict):
     """
     Encola en Redis una consulta fallida (400) para reintentarla más tarde.

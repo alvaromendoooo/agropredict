@@ -1,9 +1,13 @@
 from .sensores_dao import SensoresDAO
-from .sensores_dto import SensoresDTO, GloablSensorDTO
+from .sensores_dto import SensoresDTO, GloablSensorDTO, TempLimitesDTO
 from typing import Optional
 from datetime import date
 from helpers.ApiExceptions import APIException
 from ..ingesta.ingesta_service import IngestionService
+from ..external_services.dtagro_service import DTAgroService
+import logging
+
+logger = logging.getLogger(__name__)
 
 class SensoresService():
 
@@ -56,6 +60,7 @@ class SensoresService():
             existe_sensor = SensoresDAO.existe_sensor(
                 eui = eui
             )
+
             if existe_sensor:
                 sensores_existentes.append(eui)
 
@@ -89,9 +94,7 @@ class SensoresService():
                 error = "Data Not Found"
             )
 
-        print(f"DEBUG: fechas iniciales: {fechas_iniciales}")
         if contador_verificaciones != len(euis):
-            print("entro a la ingesta")
         # Almaceno los datos de los sensores en DB
             IngestionService.ingesta_sensores_data(
                 euis = sensores_sin_datos_almacenados,
@@ -106,7 +109,6 @@ class SensoresService():
         for eui in euis:
             datos = SensoresDAO.consultar_datos_sensores(eui, fecha_inicio, fecha_fin)
             datos_resultantes.append(datos)
-
 
         if datos_resultantes == []:
             raise APIException(

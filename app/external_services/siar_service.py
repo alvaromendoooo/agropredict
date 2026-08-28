@@ -35,6 +35,7 @@ class SiARService:
         cursor = fec_init
         contador_timeouts = 0
         contador_peticiones = 0
+        dias_sin_datos = []
         while cursor <= fec_fin:
             
             datos = cliente.get_historical_data_by_date(
@@ -44,6 +45,13 @@ class SiARService:
                 fec_init=cursor,
                 fec_fin=cursor
             )
+
+            if datos == []:
+                dias_sin_datos.append(cursor)
+                cursor += timedelta(days = 1)
+                continue
+                 
+
 
             if not isinstance(datos, list):
                 if datos.get('success') == False:
@@ -78,8 +86,12 @@ class SiARService:
                 for dato in (datos or []):
                     datos_dia.append({
                         "timestamp": parse_iso(dato.get('Fecha')),
-                        "temperatura": dato.get("TempMedia"),
-                        "humedad": dato.get("HumedadMedia"),
+                        "temperatura_media": dato.get("TempMedia"),
+                        "temperatura_maxima": dato.get("TempMax"),
+                        "temperatura_minima": dato.get("TempMin"),
+                        "humedad_media": dato.get("HumedadMedia"),
+                        "humedad_maxima": dato.get("HumedadMax"),
+                        "humedad_minima": dato.get("humedadMin"),
                         "vel_viento": dato.get("VelViento"),
                         "precipitacion": dato.get("Precipitacion"),
                         "etp_mon": dato.get("EtPMon"),
@@ -98,6 +110,15 @@ class SiARService:
             if contador_peticiones % 5 == 0: # Máximo número de peticiones por minuto a SiAR
                 logger.info(f"Límite de 5 peticiones alcanzado, esperando 62s...")
                 time.sleep(62)
+
+        if dias_sin_datos:
+            raise SiARDataNotFound(
+                message        = f"Sin datos para los días: {[d.strftime('%Y-%m-%d') for d in dias_sin_datos]}",
+                status         = 404,
+                error          = "DATA_NOT_FOUND",
+                dias_sin_datos = dias_sin_datos 
+            )
+
         return lista_datos
 
     @classmethod

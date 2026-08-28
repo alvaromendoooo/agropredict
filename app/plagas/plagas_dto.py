@@ -45,7 +45,21 @@ class PlagaDTO:
     condiciones_evaluables : Optional[list[CondicionesDTO]]
     ventana_temporal : Optional[list[VentanaTemporalDTO]]
 
+@dataclass
+class PlagaSinAlgoritmoDTO:
+    public_id : str
+    nombre : str
+    agente_causante : str
+    momento_critico : str
+    observaciones : str
+    mas_info : str
+    tipo : str
+    grupo : str
 
 @dataclass
-class PlagaConCalendarioDTO(PlagaDTO):
+class PlagaConCalendarioAlgoritmoDTO(PlagaDTO):
+    calendario : List[CalendarioDTO]
+
+@dataclass
+class PlagaConCalendarioDTO(PlagaSinAlgoritmoDTO):
     calendario : List[CalendarioDTO]

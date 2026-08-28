@@ -1,5 +1,7 @@
 from flask import current_app
 from datetime import date
+from helpers.ApiExceptions import APIException
+from datetime import timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,37 +20,62 @@ class DTAgroService:
     @classmethod
     def get_dtagro_datos(
         cls,
-        euis : list[str],
-        fecha_inicio : list[date] | date,
-        fecha_fin : date,
-        nombre_dtagro : str,
-        nombre_predictor : str
+        euis: list[str],
+        fecha_inicio: list[date] | date,
+        fecha_fin: date,
+        nombre_dtagro: str,
+        nombre_predictor: str
     ):
         cliente = cls._get_cliente()
-        lista_resultados = []  # Contiene una lista de diccionarios, identificador por el eui del sensor analizado
+        lista_resultados = []
+        for iter, eui in enumerate(euis):
+            fec_init = fecha_inicio if isinstance(fecha_inicio, date) else fecha_inicio[iter]
 
-        iter = 0
-        for eui in euis:
-            # Almaceno la estructura incial del json de datos por eui
-            json_eui = {'eui' : eui, 'resultados' : []}
+            if nombre_predictor in ['temperatura_max', 'temperatura_min']:
+                lista_datos = []
+                cursor = fecha_inicio
+                while cursor <= fecha_fin:
+                    try:
+                        datos_por_eui = cliente.get_dtagro_temp_max_min_sensor(
+                            eui           = eui,
+                            fec_init      = cursor,
+                            fec_fin       = cursor + timedelta(days = 1), # Si hago la consulta 2026-05-05 | 2026-05-05 me devuelve null, la fecha final debe diferir un dia con la fecha inicial
+                            nombre_dtagro = nombre_dtagro
+                        )
+                    except APIException as e:
+                        logger.warning(f"Fallo API DTAgro {eui} {cursor}: {e}")
+                        datos_por_eui = None
 
-            datos_por_eui = cliente.get_dtagro_data(
-                eui = eui,
-                fecha_inicio = fecha_inicio if isinstance(fecha_inicio, date) else fecha_inicio[iter],
-                fecha_fin = fecha_fin
-            )
-            lista_datos = []
-            for dato in datos_por_eui:
-                lista_datos.append(
-                    {
-                        "timestamp" : dato['time'],
-                        f"{nombre_predictor}" : dato['measurements'].get(nombre_dtagro)
-                    }
-                )
+                    if not datos_por_eui: # No quiero que se pare la ejecución si para un día no obtengo datos
+                        lista_datos.append({
+                            "timestamp": cursor,
+                            nombre_predictor: None
+                        })
+                        cursor += timedelta(days=1)
+                        continue
 
-            # Actualizo el valor de los resultados por la lista de datos obtenido del sensor analizado
-            json_eui['resultados'] = lista_datos
-            lista_resultados.append(json_eui)
-            iter += 1
+                    tipo = "max" if nombre_predictor == "temperatura_max" else "min"
+
+                    lista_datos.append({
+                        "timestamp": datos_por_eui[tipo].get("time", None),
+                        nombre_predictor: datos_por_eui[tipo].get("value", None),
+                    })
+                    cursor += timedelta(days = 1)
         
+            else:
+                datos_por_eui = cliente.get_dtagro_data(
+                    eui          = eui,
+                    fecha_inicio = fec_init,
+                    fecha_fin    = fecha_fin
+                )
+                lista_datos = [
+                    {
+                        "timestamp": dato['time'],
+                        f"{nombre_predictor}": dato['measurements'].get(nombre_dtagro)
+                    }
+                    for dato in datos_por_eui
+                ]
+
+            lista_resultados.append({'eui': eui, 'resultados': lista_datos})
+
         return lista_resultados

@@ -35,7 +35,7 @@ def post_plaga():
         recursos=datos['recursos'],
         condiciones_evaluables = datos.get('condiciones_evaluables', None),
         ventana_temporal = datos.get('ventana_temporal', None),
-        algoritmo = datos['algoritmo'],
+        algoritmo = datos.get('algoritmo', None),
         algoritmo_url = datos.get('algoritmo_url', None),
     )
 

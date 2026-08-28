@@ -58,4 +58,44 @@ class DTAgroClient(BaseClient):
         except requests.RequestException as e:
             logger.error(f"Se ha producido un error con el cliente de dtagro : {e}")
             return None
+    
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_dtagro_temp_max_min_sensor(
+        self,
+        eui : str,
+        fec_init : date,
+        fec_fin : date,
+        nombre_dtagro : str
+    ):
+        try:
+            if not all([eui, fec_init, fec_fin, nombre_dtagro]):
+                raise ValueError("Error, se deben especificar valores para los campos: eui, fec_init, fec_fin y nombre_dtagro")
+            
+            url = f"{self.base_url}-limits?fecha_inicio={fec_init}&fecha_fin={fec_fin}&eui={eui}&medicion={nombre_dtagro}"
+
+            headers = {
+                "Authorization" : f"Bearer {self.token}"
+            }
+
+            response = self._make_request(
+                method  = 'GET',
+                url     = url,
+                headers = headers
+            )
+
+            if response.status_code == 404:
+                logger.error(f"No se han encontrado datos asociados a los parámetros indicados {eui} - {fec_init} - {fec_fin}")
+                return None
+            if response.status_code >= 500:
+                logger.error("Se ha producido un error con el servicio al que te comunicas")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            logger.error(f"Se ha producido un error con el cliente de dtagro : {e}")
+            return None
+
             

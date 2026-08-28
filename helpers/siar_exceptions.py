@@ -17,3 +17,9 @@ class SiARAutenticarError(APIException):
     Se obtiene al producirse un error de autenticación con el servicio SiAR
     """
     pass
+
+class SiARDataNotFound(APIException):
+    """
+    Se obtiene al recuperar una lista vacía de datos por SiAR
+    """
+    pass

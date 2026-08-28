@@ -61,7 +61,6 @@ class PlagasService:
                     mas_info = p.get('mas_info'),
                     tipo = p.get('tipo'),
                     grupo = p.get('grupo'),
-                    condiciones_evaluables = None,
                     calendario = calendarios_plaga
                 )
             )
@@ -196,7 +195,7 @@ class PlagasService:
         tipo: str,
         grupo: str,
         recursos: list,
-        algoritmo : str,
+        algoritmo : Optional[str] = None,
         algoritmo_url : Optional[str] = None,
         condiciones_evaluables: Optional[list] = None,
         ventana_temporal: Optional[list] = None
@@ -246,11 +245,4 @@ class PlagasService:
                 status=400,
                 message=str(e),
                 error="INVALID_DATA"
-            )
-
-        except Exception as e:
-            raise APIException(
-                status=500,
-                message = f"Error interno al registrar la plaga : {e}",
-                error="INTERNAL_ERROR"
             )

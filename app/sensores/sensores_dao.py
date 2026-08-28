@@ -47,10 +47,11 @@ class SensoresDAO():
                 MedicionesSensor.campo == nombre_prediccion
             ).order_by(MedicionesSensor.id.desc()).first()
 
+            if not datos:
+                return False
+
             datos.timestamp = datetime.fromisoformat(datos.timestamp)
             if datos.timestamp.date() != (fec_fin - timedelta(days = 1)): # Si consulto hasta el dia 20 en DTAgro me devuelve hasta el 19, por lo que aunque los datos estén bien almacenados, 19 != 20, hace la petición igual
-                print(f"DEBUG: datos timestampo {datos.timestamp.date()}")
-                print("entro")
                 return datos.timestamp.date() + timedelta(days = 1) # Para que la siguiente fecha inicial sea la siguiente a la fecha del último dato ya registrado
 
             return datos is not None
@@ -94,3 +95,11 @@ class SensoresDAO():
         except Exception as e:
             print(f"Error consultando los datos de sensores por eui - {eui} : {e}")
             return None
+        
+    @staticmethod
+    def obtener_eui_sobre_id(
+        sensor_id
+    ):
+        return db.session.query(Sensores.dispositivo_id).filter_by(
+            id = sensor_id
+        ).scalar()
