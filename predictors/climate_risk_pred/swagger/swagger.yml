@@ -259,8 +259,8 @@ paths:
       summary: Predicción de riesgo de plagas estimadas
       description: >
         Obtiene la predicción de riesgo de plagas estimada para un cultivo en un rango
-        de fechas, combinando datos de sensores IoT DTAgro con datos meteorológicos del SiAR.
-        Los sensores tienen prioridad sobre los datos del SiAR.
+        de fechas, combinando datos de sensores IoT (opcionales) con datos meteorológicos del SiAR.
+        Si se indican sensores, sus mediciones almacenadas tienen prioridad sobre los datos del SiAR.
         Devuelve la evaluación día a día de cada plaga seleccionada en el período indicado.
       parameters:
         - name: format
@@ -303,7 +303,7 @@ paths:
                 datos_sensores:
                   type: array
                   description: >
-                    Lista de EUIs de sensores IoT DTAgro a consultar.
+                    Lista de sensores IoT cuyas mediciones almacenadas se quieren consultar.
                     Si se omite se usarán exclusivamente datos del SiAR.
                   items:
                     type: object
@@ -311,9 +311,6 @@ paths:
                       sensor: 
                         type: string
                         example: "a840419a0188cc08"
-                      nombre_dt_agro: 
-                        type: string
-                        example: "Leaf_Moisture"
                       nombre_predictor_plaga: 
                         type: string
                         example: "humedad_foliar"
@@ -339,7 +336,7 @@ paths:
                   fecha_inicio: "2025-04-01T00:00:00Z"
                   fecha_fin: "2025-04-30T00:00:00Z"
                   id_plaga: "PLAGA-TOMATE-01"
-                  datos_sensores: [{"sensor" : "a840419a0188cc08", "nombre_dt_agro": "Leaf_Moisture", "nombre_predictor_plaga": "humedad_foliar"}]
+                  datos_sensores: [{"sensor" : "a840419a0188cc08", "nombre_predictor_plaga": "humedad_foliar"}]
                   parcela: "PARC-001"
                   codigo_provincia: "CC"
               conSensoresParcelaEstacion:
@@ -349,7 +346,7 @@ paths:
                   fecha_inicio: "2025-04-01T00:00:00Z"
                   fecha_fin: "2025-04-30T00:00:00Z"
                   id_plaga: "PLAGA-TOMATE-01"
-                  datos_sensores: [{"sensor" : "a840419a0188cc08", "nombre_dt_agro": "Leaf_Moisture", "nombre_predictor_plaga": "humedad_foliar"}]
+                  datos_sensores: [{"sensor" : "a840419a0188cc08", "nombre_predictor_plaga": "humedad_foliar"}]
                   parcela: "PARC-001"
                   codigo_estacion: "CC01"
               conSensoresProvincia:
@@ -359,7 +356,7 @@ paths:
                   fecha_inicio: "2025-04-01T00:00:00Z"
                   fecha_fin: "2025-04-30T00:00:00Z"
                   id_plaga: "PLAGA-TOMATE-01"
-                  datos_sensores: [{"sensor" : "a840419a0188cc08", "nombre_dt_agro": "Leaf_Moisture", "nombre_predictor_plaga": "humedad_foliar"}]
+                  datos_sensores: [{"sensor" : "a840419a0188cc08", "nombre_predictor_plaga": "humedad_foliar"}]
                   codigo_provincia: "CC"
               conSensoresEstacion:
                 summary: Con sensores IoT y estaciones meteorológicas
@@ -368,7 +365,7 @@ paths:
                   fecha_inicio: "2025-04-01T00:00:00Z"
                   fecha_fin: "2025-04-30T00:00:00Z"
                   id_plaga: "PLAGA-TOMATE-01"
-                  datos_sensores: [{"sensor" : "a840419a0188cc08", "nombre_dt_agro": "Leaf_Moisture", "nombre_predictor_plaga": "humedad_foliar"}]
+                  datos_sensores: [{"sensor" : "a840419a0188cc08", "nombre_predictor_plaga": "humedad_foliar"}]
                   codigo_estacion: "CC01"
       responses:
         "200":

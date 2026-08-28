@@ -7,7 +7,6 @@ Cada sub-servicio es responsable de UNA fuente de datos externa.
 from .siar_ingestion_service import SiarIngestionService
 from .aemet_ingestion_service import AemetIngestionService
 from .itacyl_ingestion_service import ItacylIngestionService
-from .sensor_ingestion_service import SensorIngestionService
 from .metadata_ingestion_service import MetadataIngestionService
 
 
@@ -16,7 +15,6 @@ class IngestionService(
     SiarIngestionService,
     AemetIngestionService,
     ItacylIngestionService,
-    SensorIngestionService,
     MetadataIngestionService,
 ):
     """

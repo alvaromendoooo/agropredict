@@ -51,7 +51,7 @@ class SensoresDAO():
                 return False
 
             datos.timestamp = datetime.fromisoformat(datos.timestamp)
-            if datos.timestamp.date() != (fec_fin - timedelta(days = 1)): # Si consulto hasta el dia 20 en DTAgro me devuelve hasta el 19, por lo que aunque los datos estén bien almacenados, 19 != 20, hace la petición igual
+            if datos.timestamp.date() != (fec_fin - timedelta(days = 1)): # El proveedor de sensores devuelve datos hasta el día anterior al solicitado, por lo que aunque los datos estén bien almacenados, 19 != 20, hace la petición igual
                 return datos.timestamp.date() + timedelta(days = 1) # Para que la siguiente fecha inicial sea la siguiente a la fecha del último dato ya registrado
 
             return datos is not None

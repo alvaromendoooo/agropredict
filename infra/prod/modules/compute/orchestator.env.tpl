@@ -46,8 +46,6 @@ SIAR_SERVICE_INFO_URL=${siar_service_info_url}
 AEMET_SERVICE_CURRENT_URL=${aemet_service_current_url}
 AEMET_SERVICE_FUTURE_URL=${aemet_service_future_url}
 ITACYL_SERVICE_BASE_URL=${itacyl_service_base_url}
-DTAGRO_SERVICE_BASE_URL=${dtagro_service_base_url}
-DTAGRO_API_TOKEN=${dtagro_api_token}
 
 # Dependencias Predictores
 DATA_SERVICE_HISTORIC_BASE_URL=${data_service_historic_base_url}

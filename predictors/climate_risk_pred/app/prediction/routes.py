@@ -331,7 +331,7 @@ def predecir_riesgo_plagas_estimadas():
     fecha_inicio_str = datos_peticion.get('fecha_inicio')
     fecha_fin_str = datos_peticion.get('fecha_fin')
     id_plaga = datos_peticion.get('id_plaga')
-    datos_sensores = datos_peticion.get('datos_sensores')
+    datos_sensores = datos_peticion.get('datos_sensores', [])
     parcela_id = datos_peticion.get('parcela', None)
     codigo_estacion = datos_peticion.get('codigo_estacion', None)
     codigo_provincia = datos_peticion.get('codigo_provincia', None)
@@ -340,14 +340,14 @@ def predecir_riesgo_plagas_estimadas():
     # VALIDADORES ENTRANTES
     # ========================
 
-    if not all([cultivo, fecha_inicio_str, fecha_fin_str, id_plaga, datos_sensores]):
+    if not all([cultivo, fecha_inicio_str, fecha_fin_str, id_plaga]):
         raise APIException(
             message = "Todos los parámetros deben de estar definidos",
             status  = 400,
             error   = 'Invalid Parameters'
         )
 
-    if not isinstance(datos_sensores, list):
+    if datos_sensores and not isinstance(datos_sensores, list):
         raise APIException(
             message = "El campo datos_sensores debe de ser una lista",
             status  = 400,

@@ -18,7 +18,7 @@
   - 🌦️ [AEMET](https://github.com/agro-predict-tfg-2026/Aemet) (pronósticos)
   - 📊 [SiAR](https://github.com/agro-predict-tfg-2026/SiAR) (datos históricos)
   - 🐛 [ITACyL](https://github.com/agro-predict-tfg-2026/ITACyL) (plagas y calendarios)
-  - 📡 **DTAgro** (sensores IoT)
+  - 📡 **Sensores IoT** (consulta de mediciones ya almacenadas; proveedor de ingesta pendiente de definir)
 - **Base de datos**: MySQL / MariaDB con SQLAlchemy ORM.
 - **Tareas asíncronas**: Celery + RabbitMQ + Redis.
 - **Autenticación**: Keycloak (JWT).
@@ -41,8 +41,7 @@ data-service/
 │ │ ├── base_client.py # Cliente base con lógica de requests
 │ │ ├── aemet_client.py # Cliente para AEMET
 │ │ ├── siar_client.py # Cliente para SiAR
-│ │ ├── itacyl_client.py # Cliente para ITACyL
-│ │ └── sensor_client.py # Cliente para DTAgro
+│ │ └── itacyl_client.py # Cliente para ITACyL
 │ │
 │ ├── ingesta/ # Servicios de ingesta de datos
 │ │ ├── ingesta_service.py # Fachada principal de ingesta
@@ -52,7 +51,6 @@ data-service/
 │ │ ├── siar_ingestion_service.py # Ingesta de SiAR
 │ │ ├── aemet_ingestion_service.py # Ingesta de AEMET
 │ │ ├── itacyl_ingestion_service.py # Ingesta de ITACyL
-│ │ ├── sensor_ingestion_service.py # Ingesta de sensores
 │ │ └── metadata_ingestion_service.py # Ingesta de metadatos
 │ │
 │ ├── historicos/ # Datos climáticos históricos
@@ -107,8 +105,7 @@ data-service/
 │ ├── external_services/ # Fachadas de servicios externos
 │ │ ├── aemet_service.py
 │ │ ├── siar_service.py
-│ │ ├── itacyl_service.py
-│ │ └── dtagro_service.py
+│ │ └── itacyl_service.py
 │ │
 │ ├── external_communication/ # Comunicación con RabbitMQ
 │ │ ├── rabbitmq_config.py

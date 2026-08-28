@@ -363,7 +363,6 @@ class DataServiceClient(BaseClient):
         eui : str,
         fecha_inicio : date,
         fecha_fin : date,
-        nombre_dtagro : str,
         nombre_predictor : str,
     ):
         MAX_INTENTOS = 5
@@ -371,7 +370,7 @@ class DataServiceClient(BaseClient):
             if not all([eui, fecha_inicio, fecha_fin]):
                 raise ValueError("Error, para consultar datos de sensores, se deben indicar los siguientes parámetros (eui, fecha_inicio, fecha_fin)")
             url = f"{self.base_sensores_url}?"
-            url += f"eui={eui}&fecha_inicio={fecha_inicio}&fecha_fin={fecha_fin + timedelta(days = 1)}&nombre_dt_agro={nombre_dtagro}&nombre_predictor={nombre_predictor}"
+            url += f"eui={eui}&fecha_inicio={fecha_inicio}&fecha_fin={fecha_fin + timedelta(days = 1)}&nombre_predictor={nombre_predictor}"
             
             response = None # Init
             intentos = 0

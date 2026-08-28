@@ -3,8 +3,6 @@ from .sensores_dto import SensoresDTO, GloablSensorDTO, TempLimitesDTO
 from typing import Optional
 from datetime import date
 from helpers.ApiExceptions import APIException
-from ..ingesta.ingesta_service import IngestionService
-from ..external_services.dtagro_service import DTAgroService
 import logging
 
 logger = logging.getLogger(__name__)
@@ -39,23 +37,22 @@ class SensoresService():
         euis : list[str],
         fecha_inicio : date,
         fecha_fin : date,
-        nombre_dtagro : str,
         nombre_predictor : str,
     ):
         """
         Obtiene los datos de sensor almacenados en la base de datos
         en base a los valores de parámetros pasados
 
-        :param eui: Lista de identificadores Identificadores público del sensor que obtiene los datos
-        :type eui: list[str]
+        :param euis: Lista de identificadores públicos del sensor que obtiene los datos
+        :type euis: list[str]
         :param fecha_inicio: Fecha comienzo de recogida de datos
         :type fecha_inicio: date
         :param fecha_fin: Fecha fin de recogida de datos
         :type fecha_fin: date
+        :param nombre_predictor: Nombre del campo de medición asociado a los datos consultados
+        :type nombre_predictor: str
         """
         sensores_existentes = []
-        contador_verificaciones = 0 
-        sensores_sin_datos_almacenados = []
         for eui in euis:
             existe_sensor = SensoresDAO.existe_sensor(
                 eui = eui
@@ -64,56 +61,24 @@ class SensoresService():
             if existe_sensor:
                 sensores_existentes.append(eui)
 
-            existe_sensor_data = SensoresDAO.existe_sensor_data(
-                eui = eui,
-                fec_init = fecha_inicio,
-                fec_fin = fecha_fin,
-                nombre_prediccion = nombre_predictor
-            )
-
-            """
-            Si yo quiero obtener datos desde el 2026-04-03 hasta el 2026-05-20 y en la BD
-            estos sensores solo tienen registrados hasta el 2026-04-20, me van a devolver 
-            hasta ahí y los que le siguen hasta el 2026-05-20 no existen por lo que no lo 
-            devuelven. En estos casos es necesario hacer una ingesta sobre estos datos 
-            faltantes
-            """
-            fechas_iniciales = []
-            if isinstance(existe_sensor_data, date): # Datos faltantes
-                fechas_iniciales.append(existe_sensor_data)
-                sensores_sin_datos_almacenados.append(eui)
-            elif existe_sensor_data:
-                contador_verificaciones += 1
-            else:
-                sensores_sin_datos_almacenados.append(eui)
-
-        if sensores_existentes == []:
+        if not sensores_existentes:
             raise APIException(
                 status = 404,
-                message = f"No existe ningún sensor registrado con eui '{eui}'",
+                message = f"No existe ningún sensor registrado con los euis indicados: {euis}",
                 error = "Data Not Found"
             )
 
-        if contador_verificaciones != len(euis):
-        # Almaceno los datos de los sensores en DB
-            IngestionService.ingesta_sensores_data(
-                euis = sensores_sin_datos_almacenados,
-                fecha_inicio = fechas_iniciales if fechas_iniciales != [] else fecha_inicio,
-                fecha_fin = fecha_fin,
-                nombre_dtagro = nombre_dtagro,
-                nombre_predictor = nombre_predictor,
-            )
-
-        # Obtengo los datos de los sensores sobre DTAgro
+        # Obtengo los datos de los sensores almacenados en la base de datos
         datos_resultantes = []
-        for eui in euis:
+        for eui in sensores_existentes:
             datos = SensoresDAO.consultar_datos_sensores(eui, fecha_inicio, fecha_fin)
-            datos_resultantes.append(datos)
+            if datos:
+                datos_resultantes.append(datos)
 
-        if datos_resultantes == []:
+        if not datos_resultantes:
             raise APIException(
                 status = 404,
-                message = "No se han encontrado datos del sensor en DTAgro para los parámetros indicados",
+                message = "No se han encontrado datos de sensores para los parámetros indicados",
                 error = "Data Not Found"
             )
 

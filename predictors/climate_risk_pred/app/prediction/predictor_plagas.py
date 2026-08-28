@@ -143,7 +143,10 @@ class PredictorPlagasService:
         """
         datos_por_dia = {}
         for sensor in datos_sensores:
-            for resultado in sensor.get('datos_recopilados').get('resultados', []):
+            datos_recopilados = sensor.get('datos_recopilados')
+            if not datos_recopilados: # El cliente devuelve None cuando no hay datos disponibles para el sensor
+                continue
+            for resultado in datos_recopilados.get('resultados') or []:
                 timestamp_str = resultado.get('timestamp')
                 campo = resultado.get('campo')   # ya viene como nombre_predictor
                 valor = resultado.get('valor')
@@ -239,7 +242,7 @@ class PredictorPlagasService:
         """
         try:
             cliente = cls._get_cliente()
-            registro_datos_dtagro = []
+            registro_datos_sensores = []
 
             # 1. Obtener plagas del cultivo
             plagas_cultivos = cliente.get_plagas_por_cultivo(cultivo.capitalize(), id_plaga)
@@ -262,26 +265,24 @@ class PredictorPlagasService:
             # Amplio el rango de fechas solo si es necesario por la aparición de acumuladas_gdd 
             fecha_inicio_sensores = fecha_inicio - timedelta(days=max_dias_ventana) if max_dias_ventana > 0 else fecha_inicio
 
-            # 2. Obtener datos de sensores para todo el rango
+            # 2. Obtener datos de sensores para todo el rango (si se indican sensores)
             for dato_sensor in datos_sensores:
-                datos_dtagro = cliente.get_datos_sensores(
+                datos_sensor = cliente.get_datos_sensores(
                     eui              = dato_sensor['sensor'],
                     fecha_inicio     = fecha_inicio_sensores,
                     fecha_fin        = fecha_fin,
-                    nombre_dtagro    = dato_sensor['nombre_dt_agro'],
                     nombre_predictor = dato_sensor['nombre_predictor_plaga']
                 )
-                diccionario_dato_dtagro = { # Mantengo una relación de metadatos de sensor junto con sus valores, para distinguir los valores de cada uno
+                diccionario_dato_sensor = { # Mantengo una relación de metadatos de sensor junto con sus valores, para distinguir los valores de cada uno
                     'sensor' : dato_sensor['sensor'],
-                    'nombre_dtagro' : dato_sensor['nombre_dt_agro'],
                     'nombre_predictor' : dato_sensor['nombre_predictor_plaga'],
-                    'datos_recopilados' : datos_dtagro
+                    'datos_recopilados' : datos_sensor
                 }
 
-                registro_datos_dtagro.append(diccionario_dato_dtagro)
+                registro_datos_sensores.append(diccionario_dato_sensor)
 
             # 3. Construir diccionario de datos por día (priorizando sensores)
-            datos_por_dia_sensores = PredictorPlagasService._transformar_datos_sensores(registro_datos_dtagro)
+            datos_por_dia_sensores = PredictorPlagasService._transformar_datos_sensores(registro_datos_sensores)
 
             # 4. Obtener datos meteorológicos SiAR (si están disponibles). Dependiendo del tipo de plaga a evaluar, se realizará sobre el día de hoy 
             # o sobre una fecha determinada
@@ -413,7 +414,7 @@ class PredictorPlagasService:
         return datos_por_fecha
 
     @classmethod
-    def _construir_datos_por_dia(cls, datos_dtagro: list, datos_siar: dict, 
+    def _construir_datos_por_dia(cls, datos_sensores_medidos: list, datos_siar: dict,
                                 fecha_inicio: date, fecha_fin: date) -> dict:
         """
         Construye diccionario de datos por día fusionando sensores y SiAR
@@ -427,7 +428,7 @@ class PredictorPlagasService:
             dia = fecha_inicio + timedelta(days=i)
             
             # Obtener datos de sensores para este día
-            datos_sensor_dia = PredictorPlagasService._transformar_datos_sensores(datos_dtagro)
+            datos_sensor_dia = PredictorPlagasService._transformar_datos_sensores(datos_sensores_medidos)
             
             # Obtener datos SiAR para este día (si existen)
             datos_siar_dia = datos_siar.get(dia, {})
