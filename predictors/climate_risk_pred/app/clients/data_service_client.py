@@ -1,0 +1,484 @@
+from .base_client import BaseClient
+from circuitbreaker import circuit
+from config.config import CircuitBreakerPersonalizado
+from flask import Flask
+from typing import Optional
+from datetime import date, timedelta, datetime
+import requests
+import logging
+import time
+
+logger = logging.getLogger(__name__)
+
+class DataServiceClient(BaseClient):
+    def __init__(self, app : Flask):
+        super().__init__(app, service_name = "data_service")
+        self.base_historical_url = app.config.get('DATA_SERVICE_HISTORIC_BASE_URL')
+        self.base_forecast_url = app.config.get('DATA_SERVICE_FORECAST_BASE_URL')
+        self.base_crop_url = app.config.get('DATA_SERVICE_CROP_BASE_URL')
+        self.base_plaga_url = app.config.get('DATA_SERVICE_PLAGAS_URL')
+        self.base_sensores_url = app.config.get('DATA_SERVICE_SENSORES_BASE_URL')
+        self.base_cultivos = app.config.get('DATA_SERVICE_CULTIVOS_BASE_URL')
+
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_historic_data_day(
+        self,
+        province_code : Optional[str],
+        estacion_code : Optional[str],
+        tipo : str,
+        start_date : date,
+        end_date : date
+    ): 
+        try:
+            
+            if province_code:
+                url = f"{self.base_historical_url}/provincias?provinceCode={province_code}&type={tipo}&startDate={start_date}&endDate={end_date}"
+            elif estacion_code:
+                url = f"{self.base_historical_url}/estacion?estacionCode={estacion_code}&type={tipo}&startDate={start_date}&endDate={end_date}"
+
+            response = self._make_request(
+                method = 'GET',
+                url = url
+            )
+
+            if response.status_code == 404:
+                logger.error("No se han encontrado datos para los parámetros indicados")
+                return None
+            if response.status_code >= 500:
+                logger.error("Ha ocurrido un problema con el servidor al que te comunicas")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            logger.error(f"Algo falló en la comunicación con data_service: {e}")
+            return None
+    
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_historic_data(
+        self,
+        province_code : Optional[str],
+        estacion_code : Optional[str],
+        tipo : str,
+        start_date : date,
+        end_date : date
+    ):
+        MAX_REINTENTOS = 10
+        reintentos = 0 # Salvaguarda para no mantener un bucle infinito
+        if end_date == datetime.today().date():
+            end_date_consulta = end_date - timedelta(days = 1) 
+        else:
+            end_date_consulta = end_date
+
+        if province_code and estacion_code:
+            logger.error("No se pueden indicar a la vez el codigo de provincia y el codigo de estacion, solo uno de ellos")
+            return None
+        datos = self.get_historic_data_day(
+            province_code = province_code,
+            estacion_code = estacion_code,
+            tipo = tipo,
+            start_date = start_date,
+            end_date = end_date_consulta
+        )
+
+        # Error de conexión con el servicio de datos
+        if not datos or not isinstance(datos, dict):
+            return None
+        
+        while(datos.get('status') == 'PENDING' or datos.get('status') == 'LOADING'):
+            if reintentos >= MAX_REINTENTOS:
+                logger.error(f"Número máximo de reintentos {MAX_REINTENTOS} consumidos, error de consulta")
+                return None
+            time.sleep(62)
+            reintentos += 1
+            datos = self.get_historic_data_day(
+                province_code = province_code,
+                estacion_code = estacion_code,
+                tipo = tipo,
+                start_date = start_date,
+                end_date = end_date_consulta
+            )
+            if not datos or not isinstance(datos, dict):
+                return None 
+            
+        # Control de caso de ingesta fallida    
+        if datos.get('status') == 'FAILED':
+            logger.error(f"La obtención de datos para el rango de fechas: {start_date} - {end_date} falló")
+            return None
+
+        return datos
+        
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_future_data(
+        self,
+        province_code : Optional[str],
+        ccaa_code : Optional[str],
+        zona : str,
+        prediccion : str
+    ):
+        try:
+            if province_code and ccaa_code:
+                logger.error("No se pueden indicar a la vez el codigo de provincia y el codigo de estacion, solo uno de ellos")
+                return None
+
+            if province_code:
+                url = f"{self.base_forecast_url}/{zona}/{prediccion}?provinciaId={province_code}"
+            elif ccaa_code:
+                url = f"{self.base_forecast_url}/{zona}/{prediccion}?ccaaId={ccaa_code}"
+            else: # nacional
+                url = f"{self.base_forecast_url}/{zona}/{prediccion}"
+
+            response = self._make_request(
+                method = 'GET',
+                url = url
+            )
+
+            # Espero a que los datos estén READY
+            time.sleep(4)
+
+            return response.json()
+        except Exception as e:
+            logger.error(f"Algo fallo en la comunicación con el servicio : {e}")
+            return None
+        
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_localidades_data(self):
+        try:
+            url = f"{self.base_forecast_url}/localidades"
+
+            response = self._make_request(
+                method = 'GET',
+                url = url
+            )
+
+            return response.json()
+        
+        except Exception as e:
+            logger.errro(f"Algo fallo en la comunicación con el servicio : {e}")
+            return None
+        
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_variedades(
+        self, 
+        cultivo : Optional[str] = None
+    ):
+        """
+        Obtiene las variedades disponibles sobre un cultivo o en general de data-service
+        Si se indica el cultivo, filtrará por él
+        
+        :param cultivo: Nombre del cultivo a filtrar (opcional)
+        :type cultivo: Optional[str]
+        :return: Lista de variedades o None si falla
+        """
+        try:
+            url = f"{self.base_crop_url}/variedades"
+
+            if cultivo:
+                url += f"?cultivo={cultivo}"
+            
+            response = self._make_request(
+                method = 'GET',
+                url = url
+            )
+
+            if response.status_code == 404:
+                logger.warning(f"No se han encontrado variedades (cultivo = {cultivo})")
+                return None
+            if response.status_code >= 500:
+                logger.warning("Error del servicio al que te comunicas al obtener variedades")
+                return None
+            
+            response.raise_for_status()
+            return response.json()
+        
+        except requests.RequestException as e:
+            logger.error(f"Fallo obteniendo variedades de data-service : {e}")
+            return None
+        
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_umbrales_variedad(
+        self, 
+        nombre_variedad : str
+    ):
+        """
+        Obtiene los umbrales de las etapas fenologicas que componen la variedad seleccionada
+        
+        :param nombre_variedad: Nombre de la variedad que se quiere consultar sus umbrales
+        :type nombre_variedad: str
+        :return: Lista de umbrales o None si no existe o falla
+        """
+        try:
+            url = f"{self.base_crop_url}/variedades/{nombre_variedad}/umbrales"
+
+            response = self._make_request(
+                method = 'GET',
+                url = url
+            )
+
+            if response.status_code == 404:
+                logger.warning(f"No se han recuperado los valores de umbrales para la variedad {nombre_variedad}")
+                return None
+            if response.status_code >= 500:
+                logger.warning(f"Error del servicio al que te comunicas al obtener umbrales de variedad {nombre_variedad}")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            logger.error(f"Fallo obteniendo umbrales sobre variedad {nombre_variedad} en data-service : {e}")
+            return None
+
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_horas_frio_variedad(
+        self, 
+        nombre_variedad : str
+    ):
+        """
+        Obtiene las horas frio actuales acumuladas sobre la variedad seleccionada y sus
+        rangos máximos y mínimos
+
+        :param nombre_variedad: Nombre de la variedad seleccionada
+        :type nombre_variedad: str
+        :return: Datos horas_frio almacenados sobre la variedad seleccionada o None en caso de que fallo o no exista
+        """
+        try:
+            url = f"{self.base_crop_url}/variedades/{nombre_variedad}/horas_frio"
+
+            response = self._make_request(
+                method = 'GET',
+                url = url
+            )
+
+            if response.status_code == 404:
+                logger.warning(f"No se han recuperado los valores de frio almacenados para la variedad {nombre_variedad}")
+                return None
+            if response.status_code >= 500:
+                logger.warning(f"Error del servicio al que te comunicas al obtener las horas_frio de la variedad {nombre_variedad}")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            print(f"Fallo obteniendo horas_frio sobre la variedad {nombre_variedad} : {e}")
+            return None
+
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_datos_plagas(
+        self,
+        cultivo : str,
+        grupo : str,
+        tipo : str,
+        plaga_id : Optional[int]
+    ):
+        try:
+            if not plaga_id:
+                url = f"{self.base_plaga_url}?cultivo={cultivo.lower()}&grupo={grupo.upper()}&tipo={tipo.lower()}"
+            else:
+                url = f"{self.base_plaga_url}?cultivo={cultivo.lower()}&grupo={grupo.upper()}&tipo={tipo.lower()}&id={plaga_id}"
+
+            response = self._make_request(
+                method = 'GET',
+                url = url
+            )
+
+            if response.status_code == 404:
+                logger.error(f"No se han recuperado valores de plaga para los parámetros indicados {cultivo} - {grupo} - {tipo}")
+                return None
+            if response.status_code >= 500:
+                logger.error("Ha ocurrido un error con el proveedor data-service consultando datos de plagas")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            print(f"Fallo obteniendo datos sobre plagas: {e}")
+            return None
+    
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_cultivo_plaga_calendar(
+        self,
+        nombres_cultivos : list[str]
+    ):
+        try:
+            url = f"{self.base_crop_url}/plague?cultivos={nombres_cultivos}"
+
+            response = self._make_request(
+                method = 'GET',
+                url = url,
+            )
+
+            if response.status_code == 404:
+                logger.error(f"No se han recuperado valores de plaga para los parámetros indicados {nombres_cultivos}")
+                return None
+            if response.status_code >= 500:
+                logger.error("Ha ocurrido un error con el proveedor data-service consultando datos de cultivo_plaga")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            print(f"Fallo obteniendo datos sobre cultivo_plagas : {e}")
+            return None
+
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_datos_cultivos(
+        self
+    ):
+        try:
+            url = f"{self.base_cultivos}"
+
+            response = self._make_request(
+                method = 'GET',
+                url = url
+            )
+
+            if response.status_code == 404:
+                logger.error("No se han encontrado datos de sensores sobre los parámetros indicados")
+                return None
+            if response.status_code >= 500:
+                logger.error("Se ha producido un error por parte de data-service")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            logger.error(f"Se ha producido un error al obtener datos de cultivos sobre data-service : {e}")
+            return None
+
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_datos_sensores(
+        self, 
+        eui : str,
+        fecha_inicio : date,
+        fecha_fin : date,
+        nombre_dtagro : str,
+        nombre_predictor : str,
+    ):
+        MAX_INTENTOS = 5
+        try:
+            if not all([eui, fecha_inicio, fecha_fin]):
+                raise ValueError("Error, para consultar datos de sensores, se deben indicar los siguientes parámetros (eui, fecha_inicio, fecha_fin)")
+            url = f"{self.base_sensores_url}?"
+            url += f"eui={eui}&fecha_inicio={fecha_inicio}&fecha_fin={fecha_fin + timedelta(days = 1)}&nombre_dt_agro={nombre_dtagro}&nombre_predictor={nombre_predictor}"
+            
+            response = None # Init
+            intentos = 0
+            while intentos < MAX_INTENTOS:
+                try:
+                    response = self._make_request(
+                        url=url,
+                        method='GET',
+                        timeout=95
+                    )
+                    break
+
+                except Exception as e:
+                    intentos += 1
+
+                    if intentos >= MAX_INTENTOS:
+                        raise
+
+                    logger.warning(
+                        f"Fallo en la petición ({intentos}/{MAX_INTENTOS}), "
+                        f"reintentando en 120s: {e}"
+                    )
+                    time.sleep(120)
+            if not response:
+                raise RuntimeError(f"No se pudo obtener respuesta tras {MAX_INTENTOS} intentos")
+
+            if response.status_code == 404:
+                logger.error("No se han encontrado datos de sensores sobre los parámetros indicados")
+                return None
+            if response.status_code >= 500:
+                logger.error("Se ha producido un error por parte de data-service")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            logger.error(f"Se ha producido un error al obtener datos de sensores sobre data-service : {e}")
+            return None
+    
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_plagas_por_cultivo(
+        self,
+        cultivo : str,
+        id_plaga : Optional[str]
+    ):
+        try:
+            if not cultivo:
+                raise ValueError("Error, se debe indicar el nombre del cultivo para obtener sus plagas asociadas")
+
+            url = f"{self.base_crop_url}/plague?cultivos={cultivo}"
+
+            if id_plaga:
+                url += f"&plaga={id_plaga}"
+
+            response = self._make_request(
+                url = url,
+                method = 'GET'
+            )
+
+            if response.status_code == 404:
+                logger.error("No se han encontrado datos de plagas asociadas al cultivo indicado")
+                return None
+            if response.status_code >= 500:
+                logger.error("Se ha producido un error por parte de data-service")
+                return None
+            
+            response.raise_for_status()
+
+            return response.json()
+        
+        except requests.RequestException as e:
+            logger.error(f"Se ha producido un error al obtener datos de sensores sobre data-service : {e}")
+            return None
+        
+    @circuit(cls = CircuitBreakerPersonalizado)
+    def get_parcelas_con_cultivos(
+        self,
+        cultivo : str,
+        parcela_id : Optional[str]
+    ):
+        try:
+            if not cultivo:
+                raise ValueError("Error, se debe indicar el nombre del cultivo para obtener las parcelas asociadas")
+            
+            url = f"{self.base_crop_url}/parcel?cultivo={cultivo}"
+
+            if parcela_id:
+                url = url + f"&parcela={parcela_id}"   
+            
+            response = self._make_request(
+                url = url,
+                method = 'GET'
+            )
+
+            if response.status_code == 404:
+                logger.error("No se han encontrado datos de parcelas asociadas al cultivo indicado")
+                return None
+            if response.status_code >= 500:
+                logger.error("Se ha producido un error interno por parte del servicio data-service")
+                return None
+
+            response.raise_for_status()
+
+            return response.json()
+        
+        except Exception as e:
+            logger.error(f"Se ha producido un error obteniendo las parcelas asociadas a un cultivo desde data-service : {e}")
+            return None
