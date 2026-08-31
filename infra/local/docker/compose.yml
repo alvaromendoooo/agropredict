@@ -191,6 +191,22 @@ services:
       - broker
     restart: unless-stopped
 
+  web:
+    build: ../../../web
+    image: mendo1/agro-predict:web-1.0
+    container_name: web
+    environment:
+      DATA_SERVICE_URL: http://data-service:5000
+      PREDICTOR_URL: http://predictors:10000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - data-service
+      - predictors
+    networks:
+      - broker
+    restart: unless-stopped
+
   keycloak_postgres:
     container_name: keycloak_postgres
     image: postgres:16
