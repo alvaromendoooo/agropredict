@@ -1,13 +1,13 @@
-import { fail, json } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { dataService } from '$lib/server/dataService';
-import { errorOutcome, isPending } from '$lib/server/helpers';
+import { errorOutcome, isPending, readActionPayload } from '$lib/server/helpers';
 
 const TYPES = ['HORA', 'DIA', 'SEMANA'];
 
 export const actions: Actions = {
 query: async ({ request }) => {
-const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+const body = await readActionPayload(request);
 if (!body) return fail(400, { message: 'Invalid payload' });
 
 const type = String(body['type'] ?? 'DIA');
@@ -36,10 +36,12 @@ startDate,
 endDate
 });
 
-if (isPending(data)) return json({ __pending: true });
-return json({ result: data });
+if (isPending(data)) return { __pending: true };
+return { result: data };
 } catch (err) {
 const outcome = errorOutcome(err);
+// 503/504 = data still being ingested or processed: the client polls again.
+if (outcome.status === 503 || outcome.status === 504) return { __pending: true };
 return fail(outcome.status, { message: outcome.message });
 }
 },
@@ -47,9 +49,11 @@ return fail(outcome.status, { message: outcome.message });
 retryPending: async () => {
 try {
 await dataService.retryPending();
-return json({ result: true });
+return { result: true };
 } catch (err) {
 const outcome = errorOutcome(err);
+// 503/504 = data still being ingested or processed: the client polls again.
+if (outcome.status === 503 || outcome.status === 504) return { __pending: true };
 return fail(outcome.status, { message: outcome.message });
 }
 }

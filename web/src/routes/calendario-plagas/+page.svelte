@@ -13,7 +13,6 @@ import { t } from '$lib/i18n';
 
 let grupo = $state('');
 let tipo = $state('');
-let id = $state('');
 
 let loading = $state(false);
 let result = $state<unknown>(null);
@@ -27,35 +26,26 @@ weeks: Array<{ week: number; level: unknown }>;
 
 function extract(value: unknown): CalendarEntry[] {
 const raw = Array.isArray(value) ? value : [value];
-const entries: CalendarEntry[] = [];
+const byId = new Map<string, CalendarEntry>();
 for (const item of raw) {
 if (!isPlainObject(item)) continue;
-const plaga = isPlainObject(item['plaga'])
-? (item['plaga'] as Record<string, unknown>)
-: item;
-const calendar = Array.isArray(plaga['calendario'])
-? plaga['calendario']
-: Array.isArray(item['calendario'])
-? (item['calendario'] as unknown[])
-: null;
-if (!calendar) continue;
-
-const weeks = calendar
+const publicId = String(item['public_id'] ?? '');
+if (publicId === '') continue;
+let entry = byId.get(publicId);
+if (!entry) {
+entry = { nombre: String(item['nombre'] ?? publicId), tipo: String(item['tipo'] ?? ''), weeks: [] };
+byId.set(publicId, entry);
+}
+const calendar = item['calendario'];
+if (Array.isArray(calendar) && calendar.length > 0 && entry.weeks.length === 0) {
+entry.weeks = calendar
 .filter(isPlainObject)
-.map((weekRow) => ({
-week: Number(weekRow['semana'] ?? 0),
-level: weekRow['nivel_alerta']
-}))
+ .map((weekRow) => ({ week: Number(weekRow['semana'] ?? 0), level: weekRow['nivel_alerta'] }))
 .filter((week) => week.week > 0)
 .sort((a, b) => a.week - b.week);
-
-entries.push({
-nombre: String(plaga['nombre'] ?? plaga['public_id'] ?? '—'),
-tipo: String(plaga['tipo'] ?? ''),
-weeks
-});
 }
-return entries;
+}
+return [...byId.values()];
 }
 
 const entries = $derived(result === null ? [] : extract(result));
@@ -67,7 +57,7 @@ async function query(): Promise<void> {
 loading = true;
 errorMessage = '';
 
-const outcome = await callAction<unknown>('query', { grupo, tipo, id });
+const outcome = await callAction<unknown>('query', { grupo, tipo });
 loading = false;
 if (!outcome.ok) {
 errorMessage = outcome.message;
@@ -89,17 +79,20 @@ event.preventDefault();
 query();
 }}
 >
-<Field label={$t('pestCalendar.group')}>
-<TextInput bind:value={grupo} placeholder={$t('pestCalendar.groupPlaceholder')} />
+<Field label={$t('pestCalendar.group')} help={$t('pestCalendar.requiredHint')}>
+<TextInput bind:value={grupo} placeholder={$t('pestCalendar.groupPlaceholder')} list="pest-groups" />
 </Field>
+<datalist id="pest-groups">
+{#each ['cereales', 'arbol_frutal', 'hortaliza_fruto'] as group (group)}<option value={group}></option>{/each}
+</datalist>
 <Field label={$t('pestCalendar.type')}>
-<TextInput bind:value={tipo} placeholder={$t('pestCalendar.typePlaceholder')} />
+<TextInput bind:value={tipo} placeholder={$t('pestCalendar.typePlaceholder')} list="pest-types" />
 </Field>
-<Field label={$t('pestCalendar.identifier')}>
-<TextInput bind:value={id} placeholder="PLAGA-TOMATE-01" />
-</Field>
+<datalist id="pest-types">
+{#each ['plaga', 'enfermedad', 'hongo', 'insecto', 'bacteria', 'acaro', 'oomiceto', 'nematodo'] as pestType (pestType)}<option value={pestType}></option>{/each}
+</datalist>
 
-<button type="submit" disabled={loading} class="w-full rounded-lg bg-agro-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-agro-700 disabled:cursor-not-allowed disabled:opacity-60">
+<button type="submit" disabled={loading || grupo.trim() === '' || tipo.trim() === ''} class="w-full rounded-lg bg-agro-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-agro-700 disabled:cursor-not-allowed disabled:opacity-60">
 {loading ? $t('common.loading') : $t('pestCalendar.filter')}
 </button>
 </form>

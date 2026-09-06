@@ -7,10 +7,10 @@ return Array.isArray(value) ? value : [];
 }
 
 export const load: PageServerLoad = async () => {
-const [crops, sensors, pests, frost] = await Promise.allSettled([
-dataService.crops(),
+const [crops, varieties, sensors, frost] = await Promise.allSettled([
+dataService.cropNames(),
+dataService.variedades(),
 dataService.metadatos('sensores'),
-dataService.pestCalendars({}),
 predictor.heladasFuturas('provincial', { codigo_provincia: 'CC' })
 ]);
 
@@ -19,8 +19,8 @@ result.status === 'fulfilled' ? result.value : fallback;
 
 return {
 crops: asArray(fulfilled(crops, [] as unknown)),
+varieties: asArray(fulfilled(varieties, [] as unknown)),
 sensors: asArray(fulfilled(sensors, [] as unknown)),
-pests: asArray(fulfilled(pests, [] as unknown)),
 frost: fulfilled(frost, null as unknown)
 };
 };

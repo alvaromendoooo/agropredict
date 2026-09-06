@@ -37,8 +37,20 @@ pestCalendars(q: { grupo?: string; tipo?: string; id?: string }) {
 return apiFetch({ base, path: '/climate/plagas', query: { ...q } });
 },
 
-crops() {
-return apiFetch({ base, path: '/crop/cultivos' });
+async cropNames() {
+// /crop/cultivos responde 404 cuando no hay filas propias de cultivo, por lo que los
+// nombres de cultivo se derivan del catalogo de variedades (nombre_cultivo).
+const raw = await apiFetch({ base, path: '/crop/variedades' });
+const names = new Set<string>();
+if (Array.isArray(raw)) {
+for (const item of raw) {
+if (item && typeof item === 'object') {
+const name = (item as Record<string, unknown>)['nombre_cultivo'];
+if (typeof name === 'string' && name !== '') names.add(name);
+}
+}
+}
+return [...names].sort((a, b) => a.localeCompare(b));
 },
 
 variedades(cultivo?: string) {

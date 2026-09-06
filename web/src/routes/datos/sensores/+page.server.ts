@@ -1,11 +1,11 @@
-import { fail, json } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { dataService } from '$lib/server/dataService';
-import { errorOutcome } from '$lib/server/helpers';
+import { errorOutcome, readActionPayload } from '$lib/server/helpers';
 
 export const actions: Actions = {
 query: async ({ request }) => {
-const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+const body = await readActionPayload(request);
 if (!body) return fail(400, { message: 'Invalid payload' });
 
 const eui = String(body['eui'] ?? '').trim();
@@ -24,7 +24,7 @@ nombre_predictor: nombrePredictor,
 fecha_inicio: fechaInicio,
 fecha_fin: fechaFin
 });
-return json({ result: data });
+return { result: data };
 } catch (err) {
 const outcome = errorOutcome(err);
 return fail(outcome.status, { message: outcome.message });

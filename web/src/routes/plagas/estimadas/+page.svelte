@@ -265,7 +265,7 @@ class="w-1/2 rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border
 <Panel title={$t('pestsEst.results')}>
 <div class="space-y-6">
 <div class="flex justify-end">
-<PdfDownloadButton action="pdf" payload={payload} filename="agro-predict-pests-estimated.pdf" disabled={loading} />
+<PdfDownloadButton kind="plagas-estimadas" payload={payload} filename="agro-predict-pests-estimated.pdf" disabled={loading} />
 </div>
 
 {#each plagasEvaluadas as plaga, plagaIndex (plagaIndex)}

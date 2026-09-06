@@ -4,6 +4,8 @@ services:
   mariadb:
     image: mariadb:10.11
     container_name: agro-predict-db
+    env_file:
+      - ../../../.env
     environment:
         MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
         MYSQL_DATABASE: ${MYSQL_DATABASE}
@@ -30,13 +32,15 @@ services:
     ports:
       - "6379:6379"
     command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASS} # Almacena datos cada 20 seg, solo muestra warnings
+    env_file:
+      - ../../../.env
     networks:
       - broker
     volumes:
       - cache:/data
 
   mcp-server:
-    image: mendo1/agro-predict:mcp-server-1.0
+    image: alvaromendooo/agro-predict:mcp-server-latest
     container_name: mcp-server
     networks:
       - broker
@@ -47,7 +51,7 @@ services:
     restart: unless-stopped
   
   ollama:
-    image: mendo1/agro-predict:model-ollama-1.0
+    image: alvaromendooo/agro-predict:model-ollama-latest
     container_name: ollama-service
     ports:
       - "11434:11434"
@@ -55,6 +59,8 @@ services:
       - broker
     volumes:
       - ollama_models:/root/.ollama
+    env_file:
+      - ../../../.env
     environment:
       - OLLAMA_NUM_PARALLEL=${PARALLEL} # Número de solicitudes paralelas
       - OLLAMA_MAX_LOADED_MODELS=${MODELS} # Número máximo de modelos a cargar en Ollama
@@ -79,13 +85,14 @@ services:
       start_period: 60s
 
   aemet-service:
-    image: mendo1/agro-predict:aemet-service-1.0
+    image: alvaromendooo/agro-predict:aemet-service-latest
     container_name: aemet-service
+    env_file: 
+      - ../../../.env
     environment:
       - AEMET_API_KEY=${AEMET_API_KEY}
       - AEMET_BASE_URL=${AEMET_BASE_URL}
       - PORT=4000
-    env_file: .env
     volumes:
       - aemet-data:/app/private/aemet
     ports: 
@@ -95,11 +102,12 @@ services:
     restart: unless-stopped
 
   siar-service:
-    image: mendo1/agro-predict:siar-service-1.0
+    image: alvaromendooo/agro-predict:siar-service-latest
     container_name: siar-service
+    env_file: 
+      - ../../../.env
     environment:
       - SIAR_API_KEY=${SIAR_API_KEY}
-    env_file: .env
     ports:
       - "8086:8086"
     networks:
@@ -107,12 +115,12 @@ services:
     restart: unless-stopped
   
   itacyl-service:
-    image: mendo1/agro-predict:itacyl-service
+    image: alvaromendooo/agro-predict:itacyl-service-latest
     container_name: itacyl-service
+    env_file:
+      - ../../../.env
     environment:
       - ITACyL_API_KEY=${ITACyL_API_KEY}
-    env_file:
-      - .env
     ports:
       - "8087:8087"
     networks:
@@ -120,8 +128,10 @@ services:
     restart: unless-stopped
   
   ia-service:
-    image: mendo1/agro-predict:ia-service-1.0
+    image: alvaromendooo/agro-predict:ia-service-latest
     container_name: ia-service
+    env_file:
+      - ../../../.env
     environment:
       - MCP_SERVER_URL=${MCP_SERVER_URL}
       - REDIS_HOST=${REDIS_HOST}
@@ -135,8 +145,6 @@ services:
       - QUEUE_OUT_NAME=${QUEUE_OUT_NAME}
       - RABBITMQ_USER=${RABBITMQ_USER}
       - RABBITMQ_PASS=${RABBITMQ_PASS}
-    env_file:
-      - .env
     ports:
       - "8088:8088"
     depends_on:
@@ -148,10 +156,10 @@ services:
     restart: unless-stopped
 
   data-service:
-    image: mendo1/agro-predict:data-service-1.0
+    image: alvaromendooo/agro-predict:data-service-latest
     container_name: data-service
     env_file:
-      - .env
+      - ../../../.env
     ports:
       - "9002:5000"
     depends_on:
@@ -168,11 +176,11 @@ services:
     restart: unless-stopped
 
   worker:
-    image: mendo1/agro-predict:data-service-1.0
+    image: alvaromendooo/agro-predict:data-service-latest
     container_name: worker
     command: celery -A celery_worker.celery_app worker --loglevel=info
     env_file:
-      - .env
+      - ../../../.env
     depends_on:
       - data-service
       - cache
@@ -181,10 +189,10 @@ services:
     restart: unless-stopped
 
   predictors:
-    image: mendo1/agro-predict:predictors-1.0
+    image: alvaromendooo/agro-predict:predictors-latest
     container_name: predictors
     env_file:
-      - .env
+      - ../../../.env
     ports:
       - "10000:10000"
     networks:
@@ -193,11 +201,12 @@ services:
 
   web:
     build: ../../../web
-    image: mendo1/agro-predict:web-1.0
+    image: alvaromendooo/agro-predict:web-1.0
     container_name: web
     environment:
       DATA_SERVICE_URL: http://data-service:5000
       PREDICTOR_URL: http://predictors:10000
+      ORIGIN: http://localhost:3000
     ports:
       - "3000:3000"
     depends_on:
@@ -211,6 +220,8 @@ services:
     container_name: keycloak_postgres
     image: postgres:16
     restart: always
+    env_file:
+      - ../../../.env
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: ${POSTGRES_USER}
@@ -232,6 +243,8 @@ services:
       - "8443:8443"
     volumes:
       - ${OPENSSL_PATH} # map certificates to container
+    env_file:
+      - ../../../.env
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_USER}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_PASSWORD}

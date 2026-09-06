@@ -3,12 +3,12 @@ import { t } from '$lib/i18n';
 import { toast } from '$lib/stores/toast';
 
 let {
-action,
+kind,
 payload,
 filename,
 disabled = false
 }: {
-action: string;
+kind: string;
 payload: () => unknown;
 filename: string;
 disabled?: boolean;
@@ -20,11 +20,12 @@ async function download(): Promise<void> {
 if (busy || disabled) return;
 busy = true;
 try {
-const response = await fetch(`?/${action}`, {
-method: 'POST',
-headers: { 'content-type': 'application/json' },
-body: JSON.stringify(payload() ?? {})
+const query = new URLSearchParams({
+kind,
+filename,
+payload: JSON.stringify(payload() ?? {})
 });
+const response = await fetch(`/reports?${query.toString()}`, { headers: { accept: 'application/pdf' } });
 
 const contentType = response.headers.get('content-type') ?? '';
 if (contentType.includes('application/pdf')) {

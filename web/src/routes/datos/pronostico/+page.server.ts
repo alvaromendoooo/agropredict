@@ -1,14 +1,14 @@
-import { fail, json } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { dataService } from '$lib/server/dataService';
-import { errorOutcome, isPending } from '$lib/server/helpers';
+import { errorOutcome, isPending, readActionPayload } from '$lib/server/helpers';
 
 const ZONAS = ['nacional', 'provincial', 'ccaa'];
 const PREDICCIONES = ['actual', 'futura'];
 
 export const actions: Actions = {
 query: async ({ request }) => {
-const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+const body = await readActionPayload(request);
 if (!body) return fail(400, { message: 'Invalid payload' });
 
 const zona = String(body['zona'] ?? 'provincial');
@@ -24,8 +24,8 @@ if (zona === 'ccaa') query['ccaaId'] = identifier;
 
 try {
 const data = await dataService.forecast(zona, prediccion, query);
-if (isPending(data)) return json({ __pending: true });
-return json({ result: data });
+if (isPending(data)) return { __pending: true };
+return { result: data };
 } catch (err) {
 const outcome = errorOutcome(err);
 return fail(outcome.status, { message: outcome.message });

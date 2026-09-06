@@ -11,6 +11,8 @@ import time
 import os
 import json
 
+from ..globals.ApiExceptions import APIException
+
 class PredictionService():
     _cliente = None
 
@@ -1522,14 +1524,40 @@ class PredictionService():
             zona = zona,
             prediccion = "tomorrow"
         )
-        # Comprobar el estado de la carga de datos antes de obtener los datos de data-service
-        if datos_futuros.get('status') == "PENDING":
-            time.sleep(5) # Después de ese tiempo ya deberían estar cargados los datos en la base de datos
+
+        # Comprobar el estado de la carga de datos antes de obtener los datos de data-service.
+        # La ingesta del pronostico (AEMET + procesado IA) puede tardar mas de un ciclo,
+        # por lo que se reintenta de forma controlada antes de devolver un error.
+        MAX_REINTENTOS_FORECAST = 12
+        reintentos_forecast = 0
+
+        while (
+            isinstance(datos_futuros, dict)
+            and datos_futuros.get('status') in ("PENDING", "LOADING")
+            and reintentos_forecast < MAX_REINTENTOS_FORECAST
+        ):
+            reintentos_forecast += 1
+            time.sleep(10)
             datos_futuros = client.get_future_data(
                 province_code = province_code,
                 ccaa_code = ccaa_code,
                 zona = zona,
                 prediccion = "tomorrow"
+            )
+
+        if isinstance(datos_futuros, dict) and datos_futuros.get('status') in ("PENDING", "LOADING"):
+            raise APIException(
+                message = "La prediccion aun se esta procesando en el sistema. Intentalo de nuevo en unos minutos.",
+                status = 503,
+                error = "DATA_PROCESSING"
+            )
+
+        if isinstance(datos_futuros, dict) and 'type_prediction' not in datos_futuros:
+            # Estado inesperado del pronostico (datos vacios o inconsistentes)
+            raise APIException(
+                message = "La prediccion no contiene datos utilizables. Intentalo de nuevo en unos minutos.",
+                status = 503,
+                error = "DATA_PROCESSING"
             )
 
         datos_localidad = None # Almacena datos de localidades de data-service, servirán para generar predicciones basadas en cotas de nieve

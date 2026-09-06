@@ -9,7 +9,7 @@ VOLUME ["/root/.ollama"]
 
 # Script de inicio que precarga el modelo
 COPY ./scripts/preload-model.sh /preload-model.sh
-RUN chmod +x /preload-model.sh
+RUN sed -i 's/\r$//' /preload-model.sh && chmod +x /preload-model.sh
 
 # Ejecución de ollama
 ENTRYPOINT []

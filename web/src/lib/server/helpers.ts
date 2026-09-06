@@ -36,3 +36,20 @@ headers: {
 }
 });
 }
+
+/**
+ * Reads the JSON payload of an action call. The client sends it form-encoded
+ * (SvelteKit actions do not accept application/json bodies) inside a field named payload.
+ */
+export async function readActionPayload(request: Request): Promise<Record<string, unknown>> {
+const form = await request.formData().catch(() => null);
+if (!form) return {};
+const raw = form.get('payload');
+if (typeof raw !== 'string' || raw === '') return {};
+try {
+const parsed: unknown = JSON.parse(raw);
+return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+} catch {
+return {};
+}
+}

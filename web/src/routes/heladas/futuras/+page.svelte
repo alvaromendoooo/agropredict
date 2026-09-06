@@ -193,7 +193,7 @@ options={[
 </div>
 {/if}
 <div class="flex-1"></div>
-<PdfDownloadButton action="pdf" payload={payload} filename="agro-predict-frost-forecast.pdf" disabled={loading} />
+<PdfDownloadButton kind="heladas-futuras" payload={payload} filename="agro-predict-frost-forecast.pdf" disabled={loading} />
 </div>
 
 <div>

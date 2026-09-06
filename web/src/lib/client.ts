@@ -1,3 +1,5 @@
+import { parse } from 'devalue';
+
 export type ActionResult<T = unknown> =
 | { ok: true; pending: false; result: T }
 | { ok: true; pending: true }
@@ -37,8 +39,9 @@ let response: Response;
 try {
 response = await fetch(`?/${action}`, {
 method: 'POST',
-headers: { 'content-type': 'application/json' },
-body: JSON.stringify(payload ?? {})
+// SvelteKit form actions only accept form-encoded bodies
+headers: { 'content-type': 'application/x-www-form-urlencoded' },
+body: new URLSearchParams({ payload: JSON.stringify(payload ?? {}) })
 });
 } catch {
 return { ok: false, status: 0, message: 'Network error' };
@@ -51,17 +54,31 @@ body = await response.json();
 body = null;
 }
 
-if (!response.ok) {
-const err = body as { message?: string } | null;
-return {
-ok: false,
-status: response.status,
-message: err?.message ?? `HTTP ${response.status}`
-};
+// Kit wraps action results in an envelope: { type, status, data } where data is a
+// devalue string of [returnValue]. Direct shapes are still supported.
+const envelope = body as { type?: string; status?: number; data?: string; message?: string } | null;
+let value: unknown = body;
+let status = response.status;
+let message: string | undefined;
+if (envelope && typeof envelope.type === 'string' && typeof envelope.data === 'string') {
+try {
+value = parse(envelope.data) as unknown;
+} catch {
+value = null;
+}
+if (envelope.type === 'failure') {
+status = envelope.status ?? response.status;
+message = (value as { message?: string } | null)?.message ?? `HTTP ${status}`;
+return { ok: false, status, message };
+}
 }
 
-const envelope = body as { __pending?: boolean; result?: T } | null;
-if (envelope?.__pending) {
+if (!response.ok) {
+return { ok: false, status, message: message ?? `HTTP ${response.status}` };
+}
+
+const resultShape = value as { __pending?: boolean; result?: T } | null;
+if (resultShape?.__pending) {
 if (!poll || attempt >= maxPolls) return { ok: true, pending: true };
 opts.onPending?.(attempt + 1);
 await sleep(delayMs);
@@ -71,7 +88,7 @@ continue;
 return {
 ok: true,
 pending: false,
-result: (envelope?.result !== undefined ? envelope.result : body) as T
+result: (resultShape?.result !== undefined ? resultShape.result : value) as T
 };
 }
 }

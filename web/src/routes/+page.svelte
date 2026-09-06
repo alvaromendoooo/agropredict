@@ -52,7 +52,7 @@ descKey: 'dashboard.pestsEstimatedDesc'
 
 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 <StatCard label={$t('dashboard.statCrops')} value={String(data.crops.length)} />
-<StatCard label={$t('dashboard.statPests')} value={String(data.pests.length)} />
+<StatCard label={$t('dashboard.statVarieties')} value={String(data.varieties.length)} />
 <StatCard label={$t('dashboard.statSensors')} value={String(data.sensors.length)} />
 
 <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

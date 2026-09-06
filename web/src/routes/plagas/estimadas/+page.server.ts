@@ -1,13 +1,13 @@
-import { fail, json } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { dataService } from '$lib/server/dataService';
 import { predictor } from '$lib/server/predictor';
-import { errorOutcome, isPending, nameList, pdfResponse } from '$lib/server/helpers';
+import { errorOutcome, isPending, readActionPayload } from '$lib/server/helpers';
 
 export const load: PageServerLoad = async () => {
 let crops: string[] = [];
 try {
-crops = nameList(await dataService.crops());
+crops = await dataService.cropNames();
 } catch {
 crops = [];
 }
@@ -25,24 +25,19 @@ return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00Z` : fallback;
 }
 
 export const actions: Actions = {
-/** Loads the pests associated with a crop (for the cascading select). */
 pests: async ({ request }) => {
-const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-const cultivo = String(body?.['cultivo'] ?? '').trim();
-if (!cultivo) return json({ result: [] });
-
+const body = await readActionPayload(request);
+const cultivo = String(body['cultivo'] ?? '').trim();
+if (!cultivo) return { result: [] };
 try {
-const data = await dataService.cultivoPlagas(cultivo);
-return json({ result: data });
+return { result: await dataService.cultivoPlagas(cultivo) };
 } catch {
-return json({ result: [] });
+return { result: [] };
 }
 },
 
 predict: async ({ request }) => {
-const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-if (!body) return fail(400, { message: 'Invalid payload' });
-
+const body = await readActionPayload(request);
 const cultivo = String(body['cultivo'] ?? '').trim();
 const idPlaga = String(body['id_plaga'] ?? '').trim();
 const fechaInicio = isoDate(body['fecha_inicio'], '');
@@ -78,27 +73,11 @@ if (provincia) payload['codigo_provincia'] = provincia;
 
 try {
 const data = await predictor.plagasEstimadas(payload);
-if (isPending(data)) return json({ __pending: true });
-return json({ result: data });
+if (isPending(data)) return { __pending: true };
+return { result: data };
 } catch (err) {
 const outcome = errorOutcome(err);
-return fail(outcome.status, { message: outcome.message });
-}
-},
-
-pdf: async ({ request }) => {
-const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-if (!body) return fail(400, { message: 'Invalid payload' });
-
-try {
-const out = await predictor.plagasEstimadasPdf(
-body,
-'agro-predict-pests-estimated.pdf'
-);
-if (out.kind === 'json') return json({ pdfAvailable: false });
-return pdfResponse(out.bytes, out.filename);
-} catch (err) {
-const outcome = errorOutcome(err);
+if (outcome.status === 503 || outcome.status === 504) return { __pending: true };
 return fail(outcome.status, { message: outcome.message });
 }
 }

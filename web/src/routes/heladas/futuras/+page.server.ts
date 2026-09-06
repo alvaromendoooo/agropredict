@@ -1,8 +1,8 @@
-import { fail, json } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { dataService } from '$lib/server/dataService';
 import { predictor } from '$lib/server/predictor';
-import { errorOutcome, isPending, nameList, pdfResponse } from '$lib/server/helpers';
+import { errorOutcome, isPending, nameList, pdfResponse, readActionPayload } from '$lib/server/helpers';
 
 const ZONAS = ['provincial', 'nacional'];
 
@@ -42,40 +42,29 @@ return payload;
 
 export const actions: Actions = {
 predict: async ({ request }) => {
-const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+const body = await readActionPayload(request);
 if (!body) return fail(400, { message: 'Invalid payload' });
 
 const payload = buildPayload(body);
 if (typeof payload === 'string') return fail(400, { message: payload });
 
 try {
-const data = await predictor.heladasFuturas(String(body['zona']), payload);
-if (isPending(data)) return json({ __pending: true });
-return json({ result: data });
+const zona = String(body['zona']);
+const forecastQuery = zona === 'provincial' ? { provinciaId: String(body['code'] ?? '') } : {};
+// El pronostico de data-service puede seguir ingiriendose (AEMET + IA): si aun no
+// esta listo avisamos al cliente (__pending) para que vuelva a intentarlo.
+const snapshot = await dataService.forecast(zona, 'tomorrow', forecastQuery);
+if (isPending(snapshot)) return { __pending: true };
+
+const data = await predictor.heladasFuturas(zona, payload);
+if (isPending(data)) return { __pending: true };
+return { result: data };
 } catch (err) {
 const outcome = errorOutcome(err);
+// 503/504 = data still being ingested or processed: the client polls again.
+if (outcome.status === 503 || outcome.status === 504) return { __pending: true };
 return fail(outcome.status, { message: outcome.message });
 }
 },
 
-pdf: async ({ request }) => {
-const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-if (!body) return fail(400, { message: 'Invalid payload' });
-
-const payload = buildPayload(body);
-if (typeof payload === 'string') return fail(400, { message: payload });
-
-try {
-const out = await predictor.heladasFuturasPdf(
-String(body['zona']),
-payload,
-'agro-predict-frost-forecast.pdf'
-);
-if (out.kind === 'json') return json({ pdfAvailable: false });
-return pdfResponse(out.bytes, out.filename);
-} catch (err) {
-const outcome = errorOutcome(err);
-return fail(outcome.status, { message: outcome.message });
-}
-}
 };

@@ -92,17 +92,20 @@ class PredictorPlagasService:
             plagas = d['plaga']
             plagas_dict = {}
             for p in plagas:
-                calendario = p['calendario']
+                calendario = p['calendario'] or []
                 objeto_riesgo = next((r for r in calendario if r['semana'] == semana), None)
 
-                riesgo = objeto_riesgo['nivel_alerta']
-
-                if 0 <= riesgo < 50:
-                    importancia = 'BAJA'
-                elif 50 <= riesgo < 75:
-                    importancia = 'MEDIA'
+                if objeto_riesgo is None: # La plaga no tiene calendario registrado para la semana actual
+                    importancia = 'SIN_DATOS'
                 else:
-                    importancia = 'ALTA'
+                    riesgo = objeto_riesgo['nivel_alerta']
+
+                    if 0 <= riesgo < 50:
+                        importancia = 'BAJA'
+                    elif 50 <= riesgo < 75:
+                        importancia = 'MEDIA'
+                    else:
+                        importancia = 'ALTA'
 
                 if p['public_id'] not in plagas_dict:
                     plagas_dict[p['public_id']] = {

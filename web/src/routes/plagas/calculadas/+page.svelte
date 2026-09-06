@@ -118,7 +118,7 @@ class="w-full rounded-lg bg-agro-600 px-4 py-2.5 text-sm font-semibold text-whit
 {#if result !== null}
 <div class="space-y-6">
 <div class="flex justify-end">
-<PdfDownloadButton action="pdf" payload={payload} filename="agro-predict-pests.pdf" disabled={loading} />
+<PdfDownloadButton kind="plagas-calculadas" payload={payload} filename="agro-predict-pests.pdf" disabled={loading} />
 </div>
 
 {#each entries as entry, cropIndex (cropIndex)}

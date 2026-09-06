@@ -40,7 +40,7 @@ print("Cliente ollama creado", flush = True)
 cache = RedisCache(
     host = os.getenv('REDIS_HOST', 'localhost'),
     port = os.getenv('REDIS_PORT'),
-    password = os.getenv('REDIS_PASSWORD'),
+    password = os.getenv('REDIS_PASS'),
     default_ttl = 3600
 )
 

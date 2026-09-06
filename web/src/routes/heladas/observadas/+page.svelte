@@ -225,7 +225,7 @@ descKey="frostObserved.pendingDesc"
 {/if}
 <div class="flex-1"></div>
 <PdfDownloadButton
-action="pdf"
+kind="heladas-observadas"
 payload={payload}
 filename="agro-predict-frost-observed.pdf"
 disabled={loading}
